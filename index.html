@@ -1,0 +1,1295 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Forecast snapshot & movement</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..110,400..800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#F3F5F8;--surface:#FFFFFF;--ink:#18202B;--muted:#5B6676;--line:#D9DEE6;--won:#1F6F5C;--commit:#2E5BBA;--bc:#8FB0E8;--in:#2A8A5B;--out:#C2412D;--soft:#EEF1F5;--judg:#8A63C7;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#121821;--surface:#1A222D;--ink:#E7ECF2;--muted:#9AA6B6;--line:#2C3745;--won:#4FB394;--commit:#6E93E6;--bc:#3D5A8F;--in:#5CC08A;--out:#E8735E;--soft:#212B37;--judg:#A98BE3}}
+:root[data-theme="dark"]{--bg:#121821;--surface:#1A222D;--ink:#E7ECF2;--muted:#9AA6B6;--line:#2C3745;--won:#4FB394;--commit:#6E93E6;--bc:#3D5A8F;--in:#5CC08A;--out:#E8735E;--soft:#212B37;--judg:#A98BE3}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:Archivo,"Helvetica Neue",Arial,sans-serif;font-size:15px;line-height:1.5;font-variation-settings:"wdth" 100}
+.wrap{max-width:1180px;margin:0 auto;padding:28px 20px 60px}
+header{display:flex;flex-wrap:wrap;gap:16px 32px;align-items:flex-end;justify-content:space-between;margin-bottom:28px}
+h1{font-size:clamp(26px,4vw,38px);line-height:1.08;margin:0;font-weight:750;font-variation-settings:"wdth" 82;letter-spacing:-.01em}
+.sub{color:var(--muted);margin:6px 0 0;max-width:62ch}
+.seg{display:inline-flex;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px}
+.seg button{font:inherit;font-weight:600;border:0;background:transparent;color:var(--muted);padding:7px 16px;border-radius:999px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.seg button:focus-visible,summary:focus-visible,a:focus-visible{outline:2px solid var(--commit);outline-offset:2px}
+h2{font-size:20px;margin:0 0 4px;font-weight:700;font-variation-settings:"wdth" 88}
+.note{color:var(--muted);font-size:13.5px;margin:0 0 16px;max-width:75ch}
+section{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:22px 22px 24px;margin-bottom:20px}
+.grid{display:grid;grid-template-columns:1.3fr 1fr;gap:28px}
+@media(max-width:860px){.grid{grid-template-columns:1fr}}
+.total{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin:8px 0 14px}
+.total b{font-size:44px;font-weight:780;font-variation-settings:"wdth" 78;line-height:1;font-variant-numeric:tabular-nums}
+.total span{color:var(--muted)}
+.bar{display:flex;height:34px;border-radius:6px;overflow:hidden;background:var(--soft)}
+.bar div{height:100%;min-width:2px}
+.legend{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px}
+.legend>div{border-left:4px solid;padding:2px 0 2px 10px}
+.legend .v{font-weight:700;font-size:20px;font-variant-numeric:tabular-nums;font-variation-settings:"wdth" 85}
+.legend .l{color:var(--muted);font-size:13px}
+table{width:100%;border-collapse:collapse;font-size:13.5px;font-variant-numeric:tabular-nums}
+th{text-align:left;font-weight:600;color:var(--muted);border-bottom:1px solid var(--line);padding:8px 8px;white-space:nowrap}
+td{border-bottom:1px solid var(--line);padding:8px 8px;vertical-align:top}
+td.n,th.n{text-align:right;white-space:nowrap}
+tr.tot td{font-weight:700;border-bottom:0}
+.scroll{overflow-x:auto}
+.bridge svg{width:100%;height:auto;display:block}
+.bridge .col{cursor:pointer}
+.bridge .col:focus{outline:none}
+.bridge .col:focus-visible .hit{stroke:var(--commit);stroke-width:2}
+.bridge .col:hover .hit{fill:var(--soft)}
+.bridge .col.sel .hit{fill:var(--soft);stroke:var(--line)}
+#bridgeDetail{margin-top:8px}
+#bridgeDetail .dh{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;margin:10px 0 8px}
+#bridgeDetail .dh h3{margin:0;font-size:16px}
+#bridgeDetail button{font:inherit;font-size:13px;border:1px solid var(--line);background:var(--surface);color:var(--muted);border-radius:999px;padding:3px 12px;cursor:pointer}
+.chip{display:inline-block;font-size:12px;padding:1px 8px;border-radius:999px;background:var(--soft);color:var(--muted);white-space:nowrap}
+.fromto{white-space:nowrap}
+.fromto i{font-style:normal;color:var(--muted)}
+a{color:inherit;text-decoration-color:var(--line);text-underline-offset:3px}
+a:hover{text-decoration-color:var(--ink)}
+.movehead{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;margin:22px 0 8px}
+.movehead h3{margin:0;font-size:16px}
+.movehead .amt{font-weight:700;font-variant-numeric:tabular-nums}
+.pos{color:var(--in)}.neg{color:var(--out)}
+details summary{cursor:pointer;font-weight:600;padding:4px 0}
+footer{color:var(--muted);font-size:13px;max-width:85ch}
+footer p{margin:0 0 8px}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:6px}
+@media(max-width:700px){.kpis{grid-template-columns:repeat(2,1fr)}.legend{grid-template-columns:1fr}}
+.kpis>div{padding:10px 0;border-top:2px solid var(--line)}
+.kpis .v{font-size:24px;font-weight:750;font-variation-settings:"wdth" 82;font-variant-numeric:tabular-nums}
+.kpis .l{color:var(--muted);font-size:13px}
+@media (prefers-reduced-motion:no-preference){.bar div{transition:width .35s ease}}
+.controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px 18px;align-items:start;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin-bottom:20px}
+.controls label{display:block;font-size:12.5px;font-weight:600;color:var(--muted);margin-bottom:5px}
+.controls select,.controls input[type=date],.prodbtn{font:inherit;font-size:14px;width:100%;padding:7px 10px;border:1px solid var(--line);border-radius:7px;background:var(--bg);color:var(--ink)}
+.presets{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.presets button,.btn{font:inherit;font-size:12.5px;border:1px solid var(--line);background:var(--surface);color:var(--muted);border-radius:999px;padding:3px 10px;cursor:pointer}
+.btn.primary{background:var(--ink);color:var(--bg);border-color:var(--ink);font-weight:600;font-size:14px;padding:8px 16px}
+.btn:disabled{opacity:.5;cursor:default}
+.prodwrap{position:relative}
+.prodbtn{text-align:left;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.prodpanel{position:absolute;z-index:20;top:100%;left:0;margin-top:4px;width:min(340px,90vw);max-height:360px;overflow:auto;background:var(--surface);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 28px rgba(0,0,0,.14);padding:8px}
+.prodpanel[hidden]{display:none}
+.prodpanel .row{display:flex;gap:8px;align-items:center;padding:4px 6px;border-radius:5px;font-size:14px;cursor:pointer}
+.prodpanel .row:hover{background:var(--soft)}
+.prodpanel .tools{display:flex;gap:6px;padding:2px 4px 8px;border-bottom:1px solid var(--line);margin-bottom:6px}
+.status{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;color:var(--muted);font-size:13px;margin:-8px 0 18px}
+.status .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--in);margin-right:6px;vertical-align:1px}
+.status .dot.stale{background:#C99A2E}
+.status .dot.err{background:var(--out)}
+.banner{background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--out);border-radius:8px;padding:14px 16px;margin-bottom:20px}
+.banner.info{border-left-color:var(--commit)}
+.progress{height:4px;background:var(--soft);border-radius:2px;overflow:hidden;margin-top:10px}
+.progress div{height:100%;background:var(--commit);width:0;transition:width .3s}
+.thr{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)}
+.thr input{width:56px;font:inherit;padding:3px 6px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)}
+.muted{color:var(--muted)}
+[data-loading] section{opacity:.55}
+.rangewrap{position:relative;grid-column:span 2}
+@media(max-width:700px){.rangewrap{grid-column:auto}}
+.calpanel{position:absolute;z-index:30;top:100%;left:0;margin-top:4px;background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 32px rgba(0,0,0,.16);padding:14px;width:max-content;max-width:calc(100vw - 32px)}
+.calpanel[hidden]{display:none}
+.calhead{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px}
+.calhead .hint{font-size:13px;color:var(--muted)}
+.calnav{font:inherit;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:6px;width:30px;height:30px;cursor:pointer;font-size:16px;line-height:1}
+.calnav:disabled{opacity:.35;cursor:default}
+.calmonths{display:flex;gap:22px;flex-wrap:wrap}
+.calm h4{margin:0 0 6px;font-size:14px;text-align:center}
+.calgrid{display:grid;grid-template-columns:repeat(7,36px);row-gap:2px}
+.calgrid .dow{font-size:11.5px;color:var(--muted);text-align:center;padding:2px 0 4px}
+.day{position:relative;font:inherit;font-size:13.5px;height:34px;border:0;background:transparent;color:var(--ink);cursor:pointer;border-radius:0;font-variant-numeric:tabular-nums}
+.day:hover:not(:disabled){background:var(--soft)}
+.day:disabled{color:var(--line);cursor:default}
+.day.inr{background:color-mix(in srgb,var(--commit) 14%,transparent)}
+.day.s,.day.e{background:var(--ink);color:var(--bg);font-weight:700}
+.day.s{border-radius:6px 0 0 6px}.day.e{border-radius:0 6px 6px 0}.day.s.e{border-radius:6px}
+.day.today{box-shadow:inset 0 0 0 1px var(--muted);border-radius:6px}
+.day.sub::after{content:"";position:absolute;left:50%;bottom:3px;width:6px;height:6px;margin-left:-3px;border-radius:50%;background:#E08A00}
+.day.s.sub::after,.day.e.sub::after{background:#FFC24D}
+.calfoot{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}
+.calkey{font-size:12.5px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.calkey i{display:inline-block;width:7px;height:7px;border-radius:50%;background:#E08A00}
+.legend>button{all:unset;cursor:pointer;border-left:4px solid;padding:2px 0 2px 10px;border-radius:0 6px 6px 0}
+.legend>button:hover,.legend>button[aria-pressed="true"]{background:var(--soft)}
+.legend>button:focus-visible{outline:2px solid var(--commit);outline-offset:2px}
+.viewbar{display:flex;flex-wrap:wrap;margin:-8px 0 16px;width:fit-content;max-width:100%}
+.viewbar button small{font-weight:400;opacity:.75;margin-left:6px}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin:-4px 0 20px}
+.tabs button{font:inherit;font-weight:600;font-size:15px;border:0;border-bottom:3px solid transparent;background:transparent;color:var(--muted);padding:8px 14px 9px;margin-bottom:-1px;cursor:pointer}
+.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--ink)}
+.tabs button:focus-visible{outline:2px solid var(--commit);outline-offset:2px}
+.tabs .when{font-weight:400;font-size:13px;color:var(--muted);margin-left:6px}
+.snapblk .dh{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;margin:16px 0 8px}
+.snapblk .dh h3{margin:0;font-size:16px}
+.exportrow{margin-top:12px;font-size:13px}
+.snapblk button.close{font:inherit;font-size:13px;border:1px solid var(--line);background:var(--surface);color:var(--muted);border-radius:999px;padding:3px 12px;cursor:pointer}
+#snapDetail .dh{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;margin:16px 0 8px}
+#snapDetail .dh h3{margin:0;font-size:16px}
+#snapDetail button.close{font:inherit;font-size:13px;border:1px solid var(--line);background:var(--surface);color:var(--muted);border-radius:999px;padding:3px 12px;cursor:pointer}
+
+#bridgeDetail{margin-top:8px}
+#bridgeDetail .dh{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;margin:10px 0 8px}
+#bridgeDetail .dh h3{margin:0;font-size:16px}
+#bridgeDetail button{font:inherit;font-size:13px;border:1px solid var(--line);background:var(--surface);color:var(--muted);border-radius:999px;padding:3px 12px;cursor:pointer}
+.bridge .col{cursor:pointer}.bridge .col:focus{outline:none}.bridge .col:focus-visible .hit{stroke:var(--commit);stroke-width:2}.bridge .col:hover .hit{fill:var(--soft)}.bridge .col.sel .hit{fill:var(--soft);stroke:var(--line)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+ <div>
+  <h1>Forecast snapshot<br>& movement</h1>
+  <p class="sub" id="subline">Won and committed vs open forecast, for the company and each region lead, and what changed between two dates. Values are ARR $ (Potential) at the quarter end from ARR Breakdown, in USD, live from Salesforce.</p>
+ </div>
+</header>
+
+<div class="seg viewbar" id="views" role="tablist" aria-label="Forecast owner"></div>
+<div class="controls" id="controls">
+ <div>
+  <label for="period">Forecast period</label>
+  <select id="period"></select>
+ </div>
+ <div class="rangewrap">
+  <label for="rangeBtn">Compare dates</label>
+  <button type="button" class="prodbtn" id="rangeBtn" aria-haspopup="dialog" aria-expanded="false">Pick dates</button>
+  <input type="hidden" id="d0"><input type="hidden" id="d1">
+  <div class="calpanel" id="calPanel" role="dialog" aria-label="Choose a date range" hidden></div>
+ </div>
+ <div class="prodwrap">
+  <label for="prodBtn">Products</label>
+  <button type="button" class="prodbtn" id="prodBtn" aria-haspopup="true" aria-expanded="false">All products</button>
+  <div class="prodpanel" id="prodPanel" hidden></div>
+ </div>
+ <div style="padding-top:22px">
+  <button type="button" class="btn primary" id="apply">Update</button>
+ </div>
+</div>
+<div class="status" id="status"></div>
+<div id="banner"></div>
+
+<div class="tabs" role="tablist" aria-label="View">
+ <button type="button" role="tab" id="tabBtnFc" data-tab="fc" aria-controls="tabFc">Forecast weekly snapshot</button>
+ <button type="button" role="tab" id="tabBtnPipe" data-tab="pipe" aria-controls="tabPipe">Pipeline status</button>
+</div>
+<div id="main">
+<div id="tabPipe" role="tabpanel" aria-labelledby="tabBtnPipe">
+<section>
+ <div class="grid">
+  <div style="min-width:0" id="snapPipe"></div>
+  <div>
+   <h2>By product</h2>
+   <p class="note" id="prodNote">Products in your filter.</p>
+   <div class="scroll" style="max-height:340px;overflow-y:auto"><table id="prodTable"></table></div>
+  </div>
+ </div>
+</section>
+
+<section>
+ <details>
+  <summary id="allSummary">All deals in the forecast at the end date</summary>
+  <div class="scroll" style="margin-top:12px"><table id="allTable"></table></div>
+ </details>
+</section>
+</div>
+
+<div id="tabFc" role="tabpanel" aria-labelledby="tabBtnFc" hidden>
+<section>
+ <div class="grid">
+  <div style="min-width:0" id="snapFc"></div>
+  <div>
+   <h2>By product</h2>
+   <p class="note" id="fcProdNote">In this forecast.</p>
+   <div class="scroll" style="max-height:340px;overflow-y:auto"><table id="fcProdTable"></table></div>
+  </div>
+ </div>
+</section>
+<section>
+ <details>
+  <summary id="fcAllSummary">All deals in the forecast</summary>
+  <div class="scroll" style="margin-top:12px"><table id="fcAllTable"></table></div>
+ </details>
+</section>
+</div>
+
+<!-- shared by both tabs: compares the tab's view at the start and end dates -->
+<section class="bridge">
+ <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:baseline">
+  <h2 id="bridgeTitle">From start to end</h2>
+  <label class="thr">Count ARR changes from <input type="number" id="thr" min="0" max="50" step="1" value="3">% <span>(smaller ones are mostly FX)</span></label>
+ </div>
+ <p class="note" id="bridgeNote"></p>
+ <div id="bridge"></div>
+ <div id="bridgeDetail" aria-live="polite"></div>
+ <div class="kpis" id="kpis"></div>
+</section>
+
+<section>
+ <h2>What changed</h2>
+ <p class="note">Deals that entered or left, deals whose ARR went up or down while staying in, and deals that converted to won (these stay inside, so they are not movement), between the two points the waterfall compares.</p>
+ <div id="moves"></div>
+</section>
+</div>
+
+<footer>
+ <p><b>Company and region tabs.</b> Company is Shaka's (Shachar Arnon, VP) forecast over all deals, using the VP forecast column. North America (Daniel Pesce), EMEA (Lidor Oz) and APAC (Guy Port) are each region lead's forecast, using the Region Lead Forecast column, over the deals whose account region is North America or LATAM, EMEA or ROW, and APAC. That region split is an approximation: Razieli groups deals by the owner's reporting line, which can put a few deals under a different region lead. Each tab keeps its own compare dates and its own Forecast weekly snapshot or Pipeline status choice.</p>
+ <p><b>How this is built.</b> For the selected period the dashboard takes every <code>ARR_Breakdown__c</code> row whose ARR Period (<code>ARR_End_Date__c</code>) is the last day of that quarter, and sums its ARR $ (Potential) (<code>ARR_Dollar__c</code>) by product. Periods are year-to-date, so Q3 uses 30 Sep and Q4 uses 31 Dec. Only the conditions come from the opportunity: won means stage Closed Won or Committed; forecast means the tab's forecast column (<code>VP_Forecast__c</code> or <code>Region_Lead_Forecast__c</code>) is Best Case, Commit, Next Q Best Case or Next Q Commit on an open deal. In Pipeline status, Next Q Best Case and Next Q Commit deals belong to the quarter after their Min ARR quarter, so they count only once the selected period reaches that quarter.</p>
+ <p>The start and end positions are rebuilt from Salesforce field history on the forecast column, Stage, Min ARR Date and Min ARR Period Amount ($). ARR Breakdown keeps no history, but its rows are built from Bookings, which do: when any of a deal's bookings changed after the earlier moment (ARR start or end date, ARR base amount, or which deal it belongs to), the deal's quarter-end ARR then is rebuilt from its bookings as they stood, a booking counting when its ARR period covered the quarter's last month. Otherwise a deal's value is its ARR row scaled by how its Min ARR amount has changed since. Deleted bookings leave no history and can't be rebuilt. A deal that has a row today but whose Min ARR date was after the quarter end on the earlier date counts as pulled into the period. A deal that no longer has a row (Min ARR date moved past the quarter end, or closed lost, which removes the rows) is valued from its first ARR period, or for closed lost from its opportunity products. Field history goes back 18 months.</p>
+ <p><b>Saved submissions.</b> Razieli saves every forecast submission's ARR waterfall rows to Snowflake (<code>REVOPS_ARR_WATERFALL_PRODUCTS_BINARY_SNAPSHOT</code> for the VP, <code>REVOPS_ARR_WATERFALL_PRODUCTS_BINARY_REGION_LEAD_SNAPSHOT</code> for region leads). Forecast weekly snapshot and its waterfall read the tab's lead's submissions from there, through your Snowflake connector, so a forecast shows exactly the deals, stages, forecast category and ARR they submitted, with later edits and deleted bookings having no effect. Next Q Commit and Next Q Best Case deals with ARR at the quarter end count in their pillar, as in Razieli. A submission Snowflake doesn't have, or a viewer without Snowflake, gets the rebuild from Salesforce history described below, and the page says so.</p>
+ <p><b>Two views, both tied to the compare end date.</b> The waterfall and What changed follow the open tab: in Pipeline status they compare deal status at the start of the start date with the end of the end date; in Forecast weekly snapshot they compare the lead's latest submission on or before each date, with their judgment at each end when Razieli still has it. Pipeline status shows every deal's status at the end of the end date (right now when it is today). Forecast weekly snapshot shows the lead's last submission for the selected quarter on or before the end date (the saved snapshot, or where there is none the time of their latest #forecast-update post or Razieli's submit time, with each deal rebuilt from history as of that moment), plus the judgment that went with it when Razieli still has it.</p>
+ <p>Judgment is the number the lead enters in Razieli on top of closed, Commit and Best Case, copied from Razieli on 7 Oct 2026, not read live. Region leads: Daniel Pesce +$1.0M for Q4 2026 (5 Oct) and +$200K for Q3 2026; Lidor Oz +$500K for Q4 2026 (27 Sep); Guy Port none. Their notes keep no previous judgment. Shaka: Q4 2026 is +$3.35M (submitted 6 Oct 2026) and was +$2.35M before that (submitted 29 Sep 2026, dates from #forecast-update); Q1–Q3 2026 and all of 2027 have none. Razieli keeps only the current and previous judgment, so a date before 29 Sep has no judgment: a range starting before it shows only the end date's judgment, with no change, and a range ending before it shows none. A range that starts on or after 29 Sep and ends on or after 6 Oct shows the previous judgment and the change separately. Judgment columns show only with all products selected.</p>
+ <p>Calendar dots mark days the tab's lead updated their forecast, read from the #forecast-update Slack channel.</p>
+ <p>Data loads live from Salesforce with your own access each time the page opens, and is cached for 5 minutes. Use Refresh for a fresh pull.</p>
+</footer>
+</div>
+<script>
+const SF_SERVER = "SalesForce Read Only";
+const FC = ["Best Case","Commit","Next Q Best Case","Next Q Commit"];
+const WON = ["Closed Won","Committed"];
+const SF_URL = id => `https://wscsports.lightning.force.com/lightning/r/Opportunity/${id}/view`;
+const DAY = 86400000;
+const CACHE = {staleTime: 300000, gcTime: 86400000};
+/* ---------- views: the company (Shaka's VP forecast) and each region lead's forecast ---------- */
+// regions: account regions (Region__c / snapshot REGION) the lead's tab covers. field: the opportunity forecast column the lead sets.
+// snap: Razieli's saved submissions in Snowflake. slack: the lead's name on #forecast-update posts.
+const VIEWS = [
+  {key: "co", label: "Company", lead: "Shaka", leadFull: "Shachar Arnon", role: "VP", slack: /Shachar Arnon/i, regions: null, field: "VP_Forecast__c", fkey: "vp",
+    snap: {table: "WSC_PROD.DWH_REVOPS.REVOPS_ARR_WATERFALL_PRODUCTS_BINARY_SNAPSHOT", user: "ej7dLJbR2WzB4ztJLX0O", col: "VP_FORECAST"}},
+  {key: "na", label: "North America", lead: "Daniel", leadFull: "Daniel Pesce", role: "region lead", slack: /Daniel Pesce/i, regions: ["North America", "LATAM"], field: "Region_Lead_Forecast__c", fkey: "rl",
+    snap: {table: "WSC_PROD.DWH_REVOPS.REVOPS_ARR_WATERFALL_PRODUCTS_BINARY_REGION_LEAD_SNAPSHOT", user: "iANb2NLrxjHcEZRxVaHh", col: "REGION_LEAD_FORECAST"}},
+  {key: "emea", label: "EMEA", lead: "Lidor", leadFull: "Lidor Oz", role: "region lead", slack: /Lidor Oz/i, regions: ["EMEA", "ROW"], field: "Region_Lead_Forecast__c", fkey: "rl",
+    snap: {table: "WSC_PROD.DWH_REVOPS.REVOPS_ARR_WATERFALL_PRODUCTS_BINARY_REGION_LEAD_SNAPSHOT", user: "hpXmVcn5TauZdGjWqU26", col: "REGION_LEAD_FORECAST"}},
+  {key: "apac", label: "APAC", lead: "Guy", leadFull: "Guy Port", role: "region lead", slack: /Guy Port/i, regions: ["APAC"], field: "Region_Lead_Forecast__c", fkey: "rl",
+    snap: {table: "WSC_PROD.DWH_REVOPS.REVOPS_ARR_WATERFALL_PRODUCTS_BINARY_REGION_LEAD_SNAPSHOT", user: "YCsEWVOY5eEtt7tROfkN", col: "REGION_LEAD_FORECAST"}}
+];
+const V = () => VIEWS.find(v => v.key === S.view) || VIEWS[0];
+const inView = o => !V().regions || V().regions.includes(o.region);
+
+// Judgment per view and quarter, from Razieli get_forecast_rollup (VP and region lead rows). Snapshot, not live.
+const JUDGMENT_AS_OF = "2026-10-07";
+// Razieli keeps only the current and the previous judgment. The previous one was in effect from `prevSubmitted` until `submitted`
+// (dates of the lead's last two submissions for the quarter, from #forecast-update); before `prevSubmitted` no judgment is known.
+// Region leads' notes keep no previous judgment (prev: null).
+// items: [label, previous, current]
+const JUDGMENT_CO = {
+  "Q4-2026": {val: 3350000, prev: 2350000, submitted: "2026-10-06", submittedAt: "2026-10-06T16:01:24Z", prevSubmitted: "2026-09-29", items: [
+    ["SPL", 0, 1500000], ["EWC", 500000, 500000], ["Generated converted pipeline News deals", 600000, 400000],
+    ["Pipeline above proposal sent conversion (+10% → +9%)", 600000, 550000], ["Pipeline below proposal conversion (+2.5% → +2.25%)", 300000, 300000],
+    ["NHL Renewal $ fix", 200000, 200000], ["Rambler Upsells", 400000, 150000], ["MSG Network", -260000, -260000],
+    ["Not itemised (note's lines sum $10K below its stated total)", 10000, 10000]]}
+};
+const JUDGMENT = {
+  co: JUDGMENT_CO,
+  na: {"Q4-2026": {val: 1000000, prev: null, submitted: "2026-10-05", submittedAt: "2026-10-05T14:49:00Z", items: [["1,000,000 for Q4", null, 1000000]]},
+       "Q3-2026": {val: 200000, prev: null, submitted: "2026-09-28", submittedAt: "2026-09-28T14:21:16Z", items: [["additional pipeline", null, 200000]]}},
+  emea: {"Q4-2026": {val: 500000, prev: null, submitted: "2026-09-27", submittedAt: "2026-09-27T06:43:45Z", items: [["+500K from pipeline deals", null, 500000]]}},
+  apac: {}
+};
+const judgmentFor = id => { const j = (JUDGMENT[V().key] || {})[id]; return j && (Math.round(j.val / 1000) || Math.round((j.prev || 0) / 1000)) ? j : null; };
+// Which judgment was in effect at the start (start of day) and end (end of day) of the range: "cur", "prev", or null when unknown
+function judgmentRange(J, d0, d1) {
+  const at = (d, endOfDay) => (endOfDay ? d >= J.submitted : d > J.submitted) ? "cur"
+    : J.prev != null && J.prevSubmitted && (endOfDay ? d >= J.prevSubmitted : d > J.prevSubmitted) ? "prev" : null;
+  return {start: at(d0, false), end: at(d1, true)};
+}
+
+/* ---------- small helpers ---------- */
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const fmt = n => { const a = Math.abs(n); const s = a >= 1e6 ? (a/1e6).toFixed(2)+"M" : a >= 1e3 ? Math.round(a/1e3)+"K" : String(Math.round(a)); return (n < 0 ? "−" : "") + "$" + s; };
+const full = n => (n < 0 ? "−$" : "$") + Math.abs(Math.round(n)).toLocaleString("en-US");
+const signed = n => (n > 0 ? "+" : n < 0 ? "−" : "") + "$" + Math.abs(Math.round(n)).toLocaleString("en-US");
+const sum = (a, f) => a.reduce((s, r) => s + f(r), 0);
+const iso = d => d.toISOString().slice(0, 10);
+const todayISO = () => iso(new Date());
+const parseTs = s => Date.parse(String(s).replace(/\+0000$/, "Z"));
+const md = d => d ? new Date(d + "T00:00:00Z").toLocaleDateString("en-GB", {month: "short", year: "2-digit", timeZone: "UTC"}) : "none";
+const dmy = d => new Date(d + "T00:00:00Z").toLocaleDateString("en-GB", {day: "numeric", month: "short", year: "numeric", timeZone: "UTC"});
+const qStart = d => { const x = new Date(d + "T00:00:00Z"); return iso(new Date(Date.UTC(x.getUTCFullYear(), Math.floor(x.getUTCMonth()/3)*3, 1))); };
+const store = { get(k, d) { try { const v = localStorage.getItem("fcdash:" + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+                set(k, v) { try { localStorage.setItem("fcdash:" + k, JSON.stringify(v)); } catch (e) {} } };
+
+/* ---------- periods ---------- */
+const PERIODS = [];
+// Forecast periods are year-to-date: Qn covers 1 Jan through the end of Qn, so Q4 is the full year.
+for (const y of [2026, 2027]) {
+  for (let q = 1; q <= 4; q++) {
+    const e = iso(new Date(Date.UTC(y, q*3, 0)));
+    PERIODS.push({id: `Q${q}-${y}`, label: q === 4 ? `Q4 ${y} YTD (full year)` : `Q${q} ${y} YTD`, short: `Q${q} ${y} YTD`, p0: `${y}-01-01`, p1: e});
+  }
+}
+const periodById = id => PERIODS.find(p => p.id === id) || PERIODS.find(p => p.id === (/^FY-(\d{4})$/.test(id || "") ? "Q4-" + id.slice(3) : "Q4-2026"));
+
+/* ---------- state ---------- */
+const S = {
+  mcp: null, loading: false, loaded: null, // loaded = {period, d0}
+  opps: [], products: [], sel: null, // sel: Set of selected products, null = all
+  storedAt: null, fresh: true, sel_step: null, err: null, snapSel: {pipe: null, fc: null}, oppMap: new Map(), view: "co", vstate: {}, subs: new Map(), subList: [], subsState: "loading", cal: null, tab: "pipe"
+};
+
+/* ---------- Salesforce access ---------- */
+let refreshing = false, calls = 0, done = 0;
+function progress() { const p = $("prog"); if (p) p.style.width = (calls ? Math.min(100, done / calls * 100) : 0) + "%"; }
+async function soql(q) {
+  calls++; progress();
+  let res;
+  try {
+    res = await S.mcp.callTool(SF_SERVER, "soqlQuery", {q}, {cache: refreshing ? {...CACHE, refresh: true} : CACHE});
+  } catch (e) {
+    if (e && e.retryable) {
+      await new Promise(r => setTimeout(r, Math.min(e.retryAfterMs || 1500 + Math.random()*1500, 60000)));
+      res = await S.mcp.callTool(SF_SERVER, "soqlQuery", {q}, {cache: refreshing ? {...CACHE, refresh: true} : CACHE});
+    } else throw e;
+  }
+  done++; progress();
+  if (res.cache && res.cache.storedAt) S.storedAt = S.storedAt ? Math.min(S.storedAt, res.cache.storedAt) : res.cache.storedAt;
+  let p = res.payload;
+  if (typeof p === "string") { try { p = JSON.parse(p); } catch (e) { throw {code: "tool_error", message: p.slice(0, 300)}; } }
+  if (!p || !Array.isArray(p.records)) throw {code: "tool_error", message: "Unexpected response from Salesforce."};
+  return p.records;
+}
+// keyset paging by Id
+async function soqlAll(select, where, page = 1000) {
+  let last = "000000000000000", out = [];
+  for (;;) {
+    const recs = await soql(`${select} WHERE ${where} AND Id > '${last}' ORDER BY Id LIMIT ${page}`);
+    out = out.concat(recs);
+    if (recs.length < page) return out;
+    last = recs[recs.length - 1].Id;
+  }
+}
+const chunk = (a, n) => { const o = []; for (let i = 0; i < a.length; i += n) o.push(a.slice(i, i + n)); return o; };
+async function pool(items, n, fn) { const out = []; let i = 0; const run = async () => { while (i < items.length) { const k = i++; out[k] = await fn(items[k]); } }; await Promise.all(Array.from({length: Math.min(n, items.length)}, run)); return out; }
+const inList = ids => ids.map(x => `'${x}'`).join(",");
+const q = v => `'${v}'`;
+
+const OPP_FIELDS = "SELECT Id, Name, Type, StageName, VP_Forecast__c, Region_Lead_Forecast__c, Region__c, Owner.Name, CreatedDate, Min_ARR_Date__c, Min_ARR_Period_Amount_Dollar__c FROM Opportunity";
+const mkOpp = r => ({
+  id: r.Id, name: r.Name, type: r.Type, stage: r.StageName, vp: r.VP_Forecast__c, rl: r.Region_Lead_Forecast__c, region: r.Region__c,
+  owner: r.Owner && r.Owner.Name, created: parseTs(r.CreatedDate), mad: r.Min_ARR_Date__c,
+  amt: r.Min_ARR_Period_Amount_Dollar__c || 0, hist: [], arr: null, li: null, hasRow: false, bk: null
+});
+const BK_FIELDS = ["ARR_Start_Date__c", "ARR_End_Date__c", "ARR_Base_Amount__c", "Opportunity__c"];
+const BK_SELECT = "SELECT Id, Opportunity__c, Product__r.Name, ARR_Start_Date__c, ARR_End_Date__c, ARR_Base_Amount__c, ARRDollar__c, Conversion_Rate_USD_new__c, CreatedDate FROM Booking__c";
+const isOppId = v => typeof v === "string" && /^006[A-Za-z0-9]{12}([A-Za-z0-9]{3})?$/.test(v);
+const monthStart = d => d.slice(0, 8) + "01";
+
+async function loadData(period, d0) {
+  calls = 0; done = 0; S.storedAt = null;
+  const T0 = `${d0}T00:00:00Z`, qEnd = period.p1;
+  const opps = new Map();
+  // 1. ARR Breakdown rows at the period's last day (ARR Period = quarter end), for deals that are, or may have been, in the forecast since d0
+  const [rows, dateHist, stageHist, bookHist] = await Promise.all([
+    soqlAll("SELECT Id, Opportunity__c, Product__r.Name, ARR_Dollar__c, Opportunity__r.Name, Opportunity__r.Type, Opportunity__r.StageName, Opportunity__r.VP_Forecast__c, Opportunity__r.Region_Lead_Forecast__c, Opportunity__r.Region__c, Opportunity__r.Owner.Name, Opportunity__r.CreatedDate, Opportunity__r.Min_ARR_Date__c, Opportunity__r.Min_ARR_Period_Amount_Dollar__c FROM ARR_Breakdown__c",
+      `ARR_End_Date__c = ${qEnd} AND (Opportunity__r.VP_Forecast__c IN (${FC.map(q).join(",")}) OR Opportunity__r.Region_Lead_Forecast__c IN (${FC.map(q).join(",")}) OR Opportunity__r.StageName IN (${WON.map(q).join(",")}) OR Opportunity__r.LastModifiedDate >= ${T0})`, 2000),
+    // 2. deals whose Min ARR date moved out past the quarter end since d0 (they had an ARR row for this period then)
+    soqlAll("SELECT Id, OpportunityId, OldValue, NewValue FROM OpportunityFieldHistory", `Field = 'Min_ARR_Date__c' AND CreatedDate >= ${T0}`, 2000),
+    // 3. deals closed lost since d0 (closed lost deals have no ARR rows)
+    soqlAll("SELECT Id, OpportunityId, OldValue, NewValue FROM OpportunityFieldHistory", `Field = 'StageName' AND CreatedDate >= ${T0}`, 2000),
+    // 3b. booking changes since d0: ARR Breakdown rows are built from bookings, and booking history keeps what the rows don't
+    soqlAll("SELECT Id, ParentId, Field, OldValue, NewValue, CreatedDate FROM Booking__History", `CreatedDate >= ${T0} AND Field IN (${BK_FIELDS.map(q).join(",")})`, 2000)
+  ]);
+  rows.forEach(r => {
+    let o = opps.get(r.Opportunity__c);
+    if (!o) { const x = r.Opportunity__r || {}; o = mkOpp({...x, Id: r.Opportunity__c}); o.hasRow = true; o.arr = {}; opps.set(o.id, o); }
+    const p = (r.Product__r && r.Product__r.Name) || "Unknown product";
+    o.arr[p] = (o.arr[p] || 0) + (r.ARR_Dollar__c || 0);
+  });
+  const inRange = v => v && v >= period.p0 && v <= qEnd;
+  const extra = new Set();
+  dateHist.forEach(h => { if (!opps.has(h.OpportunityId) && inRange(h.OldValue)) extra.add(h.OpportunityId); });
+  stageHist.forEach(h => { if (!opps.has(h.OpportunityId) && h.NewValue === "Closed Lost") extra.add(h.OpportunityId); });
+  // deals whose bookings covered the quarter end before a change since d0 (ARR dates moved, amount or deal changed)
+  const ms = monthStart(qEnd);
+  const bkParents = new Set(), oldOpps = new Set();
+  bookHist.forEach(h => {
+    if (h.Field === "ARR_End_Date__c" ? h.OldValue && h.OldValue >= ms : h.Field === "ARR_Start_Date__c" ? h.OldValue && h.OldValue <= qEnd : true) bkParents.add(h.ParentId);
+    if (h.Field === "Opportunity__c" && isOppId(h.OldValue)) oldOpps.add(h.OldValue);
+  });
+  const moved = new Map(); // bookings found through history, by Id
+  await pool(chunk([...bkParents], 150), 3, async c => (await soql(`${BK_SELECT} WHERE Id IN (${inList(c)})`)).forEach(r => moved.set(r.Id, r)));
+  moved.forEach(r => { if (r.Opportunity__c && !opps.has(r.Opportunity__c)) extra.add(r.Opportunity__c); });
+  oldOpps.forEach(id => { if (!opps.has(id)) extra.add(id); });
+  const extraIds = [...extra];
+  await pool(chunk(extraIds, 150), 3, async c => (await soql(`${OPP_FIELDS} WHERE Id IN (${inList(c)})`)).forEach(r => opps.set(r.Id, mkOpp(r))));
+  const ids = [...opps.keys()];
+  // 4. field history since d0 for every candidate
+  await pool(chunk(ids, 150), 3, async c => {
+    const h = await soqlAll("SELECT Id, OpportunityId, Field, OldValue, NewValue, CreatedDate, CreatedBy.Name FROM OpportunityFieldHistory",
+      `OpportunityId IN (${inList(c)}) AND CreatedDate >= ${T0} AND Field IN ('VP_Forecast__c','Region_Lead_Forecast__c','StageName','Min_ARR_Date__c','Min_ARR_Period_Amount_Dollar__c')`, 2000);
+    h.forEach(r => { const o = opps.get(r.OpportunityId); if (o) o.hist.push({f: r.Field, old: r.OldValue, nw: r.NewValue, t: parseTs(r.CreatedDate), by: r.CreatedBy && r.CreatedBy.Name}); });
+  });
+  // 5. deals with no row at the quarter end any more: value from their first ARR period, or (closed lost) from opportunity products
+  const noRow = ids.filter(i => !opps.get(i).hasRow);
+  await pool(chunk(noRow, 150), 3, async c => {
+    const a = await soqlAll("SELECT Id, Opportunity__c, Product__r.Name, ARR_Dollar__c FROM ARR_Breakdown__c", `First_Deal_ARR__c = true AND Opportunity__c IN (${inList(c)})`, 2000);
+    a.forEach(r => { const o = opps.get(r.Opportunity__c); if (!o) return; const p = (r.Product__r && r.Product__r.Name) || "Unknown product"; (o.arr = o.arr || {})[p] = (o.arr[p] || 0) + (r.ARR_Dollar__c || 0); });
+  });
+  const noArr = noRow.filter(i => !opps.get(i).arr);
+  await pool(chunk(noArr, 150), 3, async c => {
+    const li = await soqlAll("SELECT Id, OpportunityId, Product2.Name, TotalPrice FROM OpportunityLineItem", `OpportunityId IN (${inList(c)})`, 2000);
+    li.forEach(r => { const o = opps.get(r.OpportunityId); if (!o) return; const p = (r.Product2 && r.Product2.Name) || "Unknown product"; (o.li = o.li || {})[p] = (o.li[p] || 0) + (r.TotalPrice || 0); });
+  });
+  // 6. bookings of every candidate (plus any that belonged to one before a change), with their history since d0
+  const bks = new Map(moved);
+  await pool(chunk(ids, 150), 3, async c => (await soqlAll(BK_SELECT, `Opportunity__c IN (${inList(c)})`, 2000)).forEach(r => bks.set(r.Id, r)));
+  const bkHist = new Map();
+  bookHist.forEach(h => {
+    if (h.Field === "Opportunity__c" && !(isOppId(h.OldValue) || h.OldValue == null)) return; // lookups log a second row with names
+    (bkHist.get(h.ParentId) || bkHist.set(h.ParentId, []).get(h.ParentId)).push({f: h.Field, old: h.OldValue, t: parseTs(h.CreatedDate)});
+  });
+  bks.forEach(r => {
+    const b = {opp: r.Opportunity__c, prod: (r.Product__r && r.Product__r.Name) || "Unknown product", start: r.ARR_Start_Date__c, end: r.ARR_End_Date__c,
+      base: Number(r.ARR_Base_Amount__c) || 0, usd: Number(r.ARRDollar__c) || 0, rate: Number(r.Conversion_Rate_USD_new__c) || 0, created: parseTs(r.CreatedDate),
+      hist: (bkHist.get(r.Id) || []).sort((a, b) => a.t - b.t)};
+    const owners = new Set([b.opp, ...b.hist.filter(h => h.f === "Opportunity__c").map(h => h.old)]);
+    owners.forEach(id => { const o = opps.get(id); if (o) (o.bk = o.bk || []).push(b); });
+  });
+  for (const o of opps.values()) o.hist.sort((a, b) => a.t - b.t);
+  return [...opps.values()];
+}
+
+/* ---------- reconstruction ---------- */
+function valueAt(o, f, cur, T) {
+  if (T == null) return cur;
+  for (const h of o.hist) if (h.f === f && h.t > T) return h.old;
+  return cur;
+}
+function nextQuarterEnd(d) {
+  if (!d) return null;
+  const x = new Date(d + "T00:00:00Z"), q = Math.floor(x.getUTCMonth() / 3) + 1;
+  return iso(new Date(Date.UTC(x.getUTCFullYear(), (q + 1) * 3, 0)));
+}
+const bucket = (st, vp) => WON.includes(st) ? "Won" : st === "Closed Lost" ? "Lost" : FC.includes(vp) ? "Forecast" : "Out";
+function productValues(o, amtAt) {
+  const out = {};
+  if (o.arr) {
+    const base = o.amt || sum(Object.values(o.arr), x => x);
+    const k = base ? (Number(amtAt) || 0) / base : 0;
+    for (const p in o.arr) out[p] = o.arr[p] * (o.amt ? k : 1);
+  } else {
+    const li = o.li || {"Unspecified product": 1};
+    let tot = sum(Object.values(li), x => x); const n = Object.keys(li).length;
+    for (const p in li) out[p] = (Number(amtAt) || 0) * (tot ? li[p] / tot : 1 / n);
+  }
+  return out;
+}
+// A deal's quarter-end ARR at moment T, rebuilt from its bookings as they stood then (ARR Breakdown rows are built from bookings:
+// a booking adds its USD ARR to the quarter-end row when its ARR period covers that month). Returns null when none of the deal's
+// bookings changed after T, so the current rows already describe T.
+const bkVal = (b, f, cur, T) => { for (const h of b.hist) if (h.f === f && h.t > T) return h.old; return cur; };
+function bookingsAt(o, T, period) {
+  if (!o.bk || !o.bk.some(b => b.created > T || b.hist.some(h => h.t > T))) return null;
+  const qe = period.p1, ms = monthStart(qe), now = {}, then = {};
+  let covered = false;
+  for (const b of o.bk) {
+    if (b.opp === o.id && b.start && b.end && b.start <= qe && b.end >= ms) now[b.prod] = (now[b.prod] || 0) + b.usd;
+    if (b.created > T) continue;
+    const opp = bkVal(b, "Opportunity__c", b.opp, T), s = bkVal(b, "ARR_Start_Date__c", b.start, T), e = bkVal(b, "ARR_End_Date__c", b.end, T);
+    if (opp !== o.id || !s || !e || s > qe || e < ms) continue;
+    const base = Number(bkVal(b, "ARR_Base_Amount__c", b.base, T)) || 0;
+    covered = true;
+    then[b.prod] = (then[b.prod] || 0) + (base === b.base ? b.usd : b.rate ? base / b.rate : b.base ? b.usd * base / b.base : base);
+  }
+  // Apply only the booking change to today's rows, so rows that no booking explains (and their FX) stay as they are
+  const rows = o.hasRow && o.arr ? o.arr : {}, vals = {};
+  for (const p of new Set([...Object.keys(rows), ...Object.keys(then), ...Object.keys(now)])) {
+    vals[p] = now[p] != null && then[p] == null ? 0 : (rows[p] || 0) + (then[p] || 0) - (now[p] || 0);
+  }
+  // when today's rows and bookings agree on whether the deal has a quarter-end row, the bookings decide for T too
+  const coveredNow = Object.keys(now).length > 0;
+  return {covered: coveredNow === o.hasRow ? covered : o.hasRow || covered, vals};
+}
+function stateAt(o, T, period) {
+  const exists = T == null || o.created <= T;
+  const st = valueAt(o, "StageName", o.stage, T), vp = valueAt(o, V().field, o[V().fkey], T);
+  const mad = valueAt(o, "Min_ARR_Date__c", o.mad, T), amt = valueAt(o, "Min_ARR_Period_Amount_Dollar__c", o.amt, T);
+  // A deal counts for the period when it has an ARR row at the quarter end. For an earlier moment, a deal whose bookings changed
+  // since then is rebuilt from booking history. Otherwise, as rows keep no history, the Min ARR date decides: a deal with a row today
+  // was not in the period yet if its Min ARR date was after the quarter end; a deal with no row today (pushed out or closed lost since)
+  // was in the period if its Min ARR date then fell inside it.
+  const bk = T != null ? bookingsAt(o, T, period) : null;
+  let inP = bk ? bk.covered : o.hasRow ? !(mad && mad > period.p1) : (T != null && !!mad && mad >= period.p0 && mad <= period.p1);
+  const b = exists ? bucket(st, vp) : "NotExist";
+  // Next Q Best Case / Next Q Commit: the deal belongs to the quarter after its own (Min ARR date) quarter,
+  // so it only counts for periods that reach the end of that next quarter.
+  if (inP && b === "Forecast" && /^Next Q/.test(vp || "")) {
+    const nq = nextQuarterEnd(mad);
+    if (!nq || nq > period.p1) inP = false;
+  }
+  return {exists, st, vp, mad, amt, inP, b, in: exists && inP && (b === "Won" || b === "Forecast"), vals: !exists ? {} : bk ? bk.vals : productValues(o, amt)};
+}
+// T0, T1: the two moments compared (ms; T1 null = now). fa / fb override how the state at each end is read
+// (the Forecast tab reads saved submission snapshots); extra: deals only a snapshot knows about.
+function compute(period, T0, T1, fa, fb, extra) {
+  fa = fa || (o => stateAt(o, T0, period)); fb = fb || (o => stateAt(o, T1, period));
+  const rows = [];
+  for (const o of extra && extra.length ? S.opps.concat(extra) : S.opps) {
+    if (!inView(o)) continue;
+    const a = fa(o), b = fb(o);
+    if (!a.in && !b.in) continue;
+    let mv;
+    if (a.in && b.in) mv = (a.b === "Forecast" && b.b === "Won") ? "conv" : "stay";
+    else if (b.in) mv = !a.exists ? "new" : !a.inP ? "pullin" : "upgrade";
+    else mv = b.b === "Lost" ? "lost" : !b.inP ? "pushout" : "down";
+    const ch = o.hist.filter(h => h.t > T0 && (T1 == null || h.t <= T1) && (h.f === V().field || h.f === "StageName" || h.f === "Min_ARR_Date__c"));
+    const last = ch[ch.length - 1];
+    rows.push({o, a, b, mv, when: last ? new Date(last.t).toISOString().slice(0, 10) : "", by: last ? last.by : ""});
+  }
+  return rows;
+}
+
+/* ---------- product filter ---------- */
+const pickVal = vals => { let s = 0; for (const p in vals) if (!S.sel || S.sel.has(p)) s += vals[p]; return s; };
+const v0 = r => pickVal(r.a.vals), v1 = r => pickVal(r.b.vals);
+const prodLabel = r => { const ps = Object.keys(r.b.in ? r.b.vals : r.a.vals).filter(p => (r.b.vals[p] || r.a.vals[p])); return ps.length > 2 ? ps.slice(0, 2).join(", ") + ` +${ps.length - 2}` : ps.join(", "); };
+
+function renderProductPicker() {
+  const panel = $("prodPanel");
+  const all = S.products;
+  panel.innerHTML = `<div class="tools"><button type="button" class="btn" data-a="all">All</button><button type="button" class="btn" data-a="none">None</button></div>` +
+    all.map(p => `<label class="row"><input type="checkbox" value="${esc(p)}" ${!S.sel || S.sel.has(p) ? "checked" : ""}> ${esc(p)}</label>`).join("");
+  panel.querySelectorAll("[data-a]").forEach(b => b.addEventListener("click", () => { S.sel = b.dataset.a === "all" ? null : new Set(); saveSel(); renderProductPicker(); render(); }));
+  panel.querySelectorAll("input[type=checkbox]").forEach(cb => cb.addEventListener("change", () => {
+    const set = S.sel ? new Set(S.sel) : new Set(all);
+    cb.checked ? set.add(cb.value) : set.delete(cb.value);
+    S.sel = set.size === all.length ? null : set; saveSel(); updateProdBtn(); render();
+  }));
+  updateProdBtn();
+}
+function updateProdBtn() {
+  const b = $("prodBtn");
+  b.textContent = !S.sel ? "All products" : S.sel.size === 0 ? "No products" : S.sel.size === 1 ? [...S.sel][0] : `${S.sel.size} products`;
+}
+function saveSel() { store.set("products", S.sel ? [...S.sel] : null); }
+
+/* ---------- rendering ---------- */
+let ROWS = [];
+const STEPS = [
+  {k: "new", lab: "New deals", sign: 1, desc: "Created after the start date and in the forecast at the end."},
+  {k: "upgrade", lab: "Upgraded into forecast", sign: 1, desc: "In the period at the start but outside the forecast (Pipeline or unassigned); in Commit, Best Case or won at the end."},
+  {k: "pullin", lab: "Pulled into period", sign: 1, desc: "Min ARR date was outside the period at the start and is inside it now, in the forecast."},
+  {k: "inc", lab: "ARR increase", sign: 1, desc: "In the forecast at both dates, with higher ARR at the end."},
+  {k: "dec", lab: "ARR decrease", sign: -1, desc: "In the forecast at both dates, with lower ARR at the end."},
+  {k: "minor", lab: "Small changes", sign: 0, desc: "In the forecast at both dates, with ARR changes below the threshold (mostly currency moves on non-USD deals). Net amount."},
+  {k: "down", lab: "Downgraded to Pipeline", sign: -1, desc: "In Commit or Best Case at the start, now Pipeline or unassigned."},
+  {k: "lost", lab: "Closed lost", sign: -1, desc: "In the forecast at the start, now Closed Lost."},
+  {k: "pushout", lab: "Pushed out of period", sign: -1, desc: "In the forecast at the start, but now belongs to a later period: the Min ARR date moved past the quarter end, or the VP forecast moved to Next Q Best Case / Next Q Commit (which counts in the following quarter)."}
+];
+function thr() { const x = Number($("thr").value); return isFinite(x) && x >= 0 ? x / 100 : 0.03; }
+function stepOf(r) {
+  if (r.mv === "stay" || r.mv === "conv") {
+    const a = v0(r), b = v1(r), d = b - a;
+    if (d === 0) return null;
+    if (Math.abs(d) < thr() * Math.max(Math.abs(a), 1)) return "minor";
+    return d > 0 ? "inc" : "dec";
+  }
+  return r.mv;
+}
+function stepVal(k) {
+  return sum(ROWS.filter(r => stepOf(r) === k), r => {
+    if (k === "new" || k === "upgrade" || k === "pullin") return v1(r);
+    if (k === "inc" || k === "dec" || k === "minor") return v1(r) - v0(r);
+    return -v0(r);
+  });
+}
+const fc = (st, vp) => WON.includes(st) || st === "Closed Lost" ? st : (vp || "Unassigned");
+
+// Judgment in effect on a date, for the all-products view only (it has no product split)
+function judgmentOn(date) {
+  const J = !S.sel ? judgmentFor(periodById($("period").value).id) : null;
+  const w = J && judgmentRange(J, date, date).end;
+  return w ? {J, which: w, val: w === "cur" ? J.val : J.prev, date: w === "cur" ? J.submitted : J.prevSubmitted} : null;
+}
+// Deals in the forecast (won, or open Commit / Best Case) at moment T (null = now), with their status then
+function snapItems(period, T) {
+  const out = [];
+  for (const o of S.opps) { if (!inView(o)) continue; const s = stateAt(o, T, period); if (s.in) out.push({o, s}); }
+  return out;
+}
+const sv = it => pickVal(it.s.vals);
+const SNAP_DEF = {
+  won: ["Won / committed", it => it.s.b === "Won", "--won"],
+  commit: ["Commit (open)", it => it.s.b === "Forecast" && /Commit/.test(it.s.vp), "--commit"],
+  bc: ["Best Case (open)", it => it.s.b === "Forecast" && /Best Case/.test(it.s.vp), "--bc"]
+};
+const snapProds = it => { const ps = Object.keys(it.s.vals).filter(p => it.s.vals[p]); return ps.length > 2 ? ps.slice(0, 2).join(", ") + ` +${ps.length - 2}` : ps.join(", "); };
+const snapCell = it => `<a href="${SF_URL(it.o.id)}" target="_blank" rel="noopener">${esc(it.o.name)}</a><br><span class="chip">${esc(snapProds(it))}</span> <span class="chip">${esc(it.o.type || "")}</span> <span class="chip">${esc(it.o.region || "")}</span>`;
+// One snapshot block (headline, stacked bar, clickable legend, detail table). `cfg`: {title, note, items, jn, onLabel}
+function renderSnapBlock(elId, key, cfg) {
+  const el = $(elId), items = cfg.items, jn = cfg.jn;
+  const parts = Object.entries(SNAP_DEF).map(([k, d]) => {
+    const its = items.filter(d[1]);
+    return {k, lab: d[0], col: d[2], val: sum(its, sv), sub: `${its.filter(it => sv(it) > 0).length} deals`};
+  });
+  const deals = sum(parts, p => p.val);
+  if (jn) parts.push({k: "judg", lab: `${V().lead}'s judgment`, col: "--judg", val: jn.val, sub: `submitted ${dmy(jn.date).slice(0, -5)}`, judg: true});
+  const t = sum(parts, p => p.val), won = parts[0].val;
+  // a negative judgment has no width in a stacked bar, so it shows in the legend only
+  const span = sum(parts, p => Math.max(0, p.val));
+  const sel = S.snapSel[key];
+  el.className = "snapblk";
+  el.innerHTML = `<h2>${esc(cfg.title)}</h2><p class="note">${esc(cfg.note)}</p>` +
+    `<div class="total"><b>${fmt(t)}</b><span>${!t ? "no deals in the forecast for this selection"
+      : jn ? `total forecast incl. ${V().lead}'s judgment, ${Math.round(won / t * 100)}% won or committed (deals only: ${fmt(deals)})` : `total, ${Math.round(won / t * 100)}% won or committed`}</span></div>` +
+    `<div class="bar" role="img" aria-label="${esc(parts.map(p => `${p.lab} ${full(p.val)}`).join(", "))}">` +
+    parts.map(p => `<div style="width:${span ? Math.max(0, p.val) / span * 100 : 0}%;background:var(${p.col})" title="${esc(p.lab)}: ${full(p.val)}"></div>`).join("") + `</div>` +
+    `<div class="legend"${jn ? ` style="grid-template-columns:repeat(auto-fit,minmax(120px,1fr))"` : ""}>` +
+    parts.map(p => `<button type="button" data-k="${p.k}" aria-pressed="${sel === p.k}" style="border-color:var(${p.col})"><div class="v">${p.judg && p.val >= 0 ? "+" : ""}${fmt(p.val)}</div><div class="l">${esc(p.lab)}, ${esc(p.sub)}</div></button>`).join("") + `</div>` +
+    (S.dl ? `<div class="exportrow"><button type="button" class="btn" data-export="all">Export deals (CSV)</button><span class="muted" data-export-msg></span></div>` : "") +
+    `<div aria-live="polite">${snapDetail(key, cfg)}</div>`;
+  const rerender = () => renderSnapBlock(elId, key, cfg);
+  el.querySelectorAll(".legend button").forEach(b => b.addEventListener("click", () => { S.snapSel[key] = sel === b.dataset.k ? null : b.dataset.k; rerender(); }));
+  const c = el.querySelector("button.close:not([data-export])"); if (c) c.addEventListener("click", () => { S.snapSel[key] = null; rerender(); });
+  el.querySelectorAll("[data-export]").forEach(b => b.addEventListener("click", () => exportSnap(cfg, b.dataset.export, b)));
+}
+/* ---------- CSV export of the bar's deals ---------- */
+const csvCell = v => {
+  let s = v == null ? "" : String(v);
+  if (typeof v === "string" && /^[=+\-@]/.test(s)) s = "'" + s; // keep spreadsheets from reading text as a formula
+  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+};
+async function exportSnap(cfg, which, btn) {
+  const keys = which === "all" ? Object.keys(SNAP_DEF) : [which];
+  const rows = [];
+  for (const k of keys) {
+    const d = SNAP_DEF[k];
+    cfg.items.filter(it => d[1](it) && Math.round(sv(it))).sort((a, b) => sv(b) - sv(a)).forEach(it => rows.push([
+      d[0], it.o.name, it.o.id, SF_URL(it.o.id), it.s.st || "", WON.includes(it.s.st) ? "" : it.s.vp || "", it.o.type || "", it.o.region || "", it.o.owner || "",
+      it.s.mad || "", Object.keys(it.s.vals).filter(p => it.s.vals[p] && (!S.sel || S.sel.has(p))).join("; "), Math.round(sv(it))]));
+  }
+  const head = ["Pillar", "Opportunity", "Opportunity ID", "Salesforce link", "Stage", "VP forecast", "Type", "Region", "Owner", "Min ARR date", "Products", "ARR (USD)"];
+  const csv = "﻿" + [head, ...rows].map(r => r.map(csvCell).join(",")).join("\r\n") + "\r\n";
+  const tag = which === "all" ? "won-commit-bestcase" : {won: "won", commit: "commit", bc: "bestcase"}[which];
+  const msg = btn.parentElement.querySelector("[data-export-msg]");
+  try {
+    await S.dl.save({filename: `${cfg.fileTag}-${tag}${S.sel ? "-filtered" : ""}.csv`, data: csv});
+    if (msg) msg.textContent = "";
+  } catch (e) {
+    const code = e && e.code;
+    if (code === "declined") return;
+    if (["unavailable", "not_granted", "capability_disabled", "capability_removed"].includes(code)) { S.dl = null; render(); return; }
+    if (msg) msg.textContent = code === "rate_limited" ? " A save prompt is already open." : " Couldn't export right now.";
+  }
+}
+function snapDetail(key, cfg) {
+  const sel = S.snapSel[key];
+  if (!sel) return "";
+  if (sel === "judg") {
+    const jn = cfg.jn;
+    if (!jn) { S.snapSel[key] = null; return ""; }
+    const col = jn.which === "cur" ? 2 : 1;
+    return `<div class="dh"><h3>${V().lead}'s judgment ${esc(cfg.onLabel)}: ${signed(jn.val)}</h3><button type="button" class="close">Close</button></div>` +
+      `<p class="note" style="margin-bottom:8px">${V().leadFull}'s ${V().role} judgment in Razieli, submitted ${dmy(jn.date)}, added on top of won + Commit + Best Case. Snapshot taken ${dmy(JUDGMENT_AS_OF)}.</p>` +
+      `<div class="scroll"><table><thead><tr><th>Item</th><th class="n">Amount</th></tr></thead><tbody>` +
+      jn.J.items.filter(it => it[col]).map(it => `<tr><td>${esc(it[0])}</td><td class="n ${it[col] < 0 ? "neg" : "pos"}">${signed(it[col])}</td></tr>`).join("") +
+      `<tr class="tot"><td>Total</td><td class="n">${signed(jn.val)}</td></tr></tbody></table></div>`;
+  }
+  const d = SNAP_DEF[sel];
+  const rows = cfg.items.filter(it => d[1](it) && Math.round(sv(it))).sort((a, b) => sv(b) - sv(a));
+  return `<div class="dh"><h3>${d[0]} ${esc(cfg.onLabel)}: ${rows.length} deals, ${full(sum(rows, sv))}</h3><span>${S.dl ? `<button type="button" class="close" data-export="${sel}">Export CSV</button> ` : ""}<button type="button" class="close">Close</button></span></div>` +
+    `<div class="scroll"><table><thead><tr><th>Deal</th><th>Stage</th><th>Min ARR date</th><th>Owner</th><th class="n">ARR</th></tr></thead><tbody>` +
+    rows.map(it => `<tr><td>${snapCell(it)}</td><td>${esc(it.s.st || "")}${it.s.vp && !WON.includes(it.s.st) ? `<br><i class="muted">${esc(it.s.vp)}</i>` : ""}</td><td class="fromto">${md(it.s.mad)}</td><td>${esc(it.o.owner || "")}</td><td class="n">${full(sv(it))}</td></tr>`).join("") +
+    `<tr class="tot"><td colspan="4">Total</td><td class="n">${full(sum(rows, sv))}</td></tr></tbody></table></div>`;
+}
+
+/* ---------- the lead's forecast submissions (VP for the company, region lead for a region) ---------- */
+// Slack names periods "Q4 2026" (older posts "2026_Q4")
+const slackPeriod = p => { const m = String(p).match(/^(\d{4})_Q(\d)$/); return m ? `Q${m[2]} ${m[1]}` : String(p).trim(); };
+// End of the compare range as a moment: null = now (end date is today), else the end of that day
+const endMoment = d1 => d1 >= todayISO() ? null : Date.parse(d1 + "T00:00:00Z") + DAY - 1;
+// Moment of the lead's latest submission for the selected period at or before `upTo` (ms, null = now):
+// their last #forecast-update post for it, or Razieli's submit time
+function lastForecast(period, upTo) {
+  const pk = period.id.replace("-", " "), lim = upTo == null ? Date.now() : upTo, who = V().slack;
+  let t = null;
+  for (const s of S.subList) if (s.ms && s.ms <= lim && who.test(s.user) && slackPeriod(s.period) === pk && (t == null || s.ms > t)) t = s.ms;
+  const J = (JUDGMENT[V().key] || {})[period.id], jt = J && J.submittedAt ? Date.parse(J.submittedAt) : null;
+  if (jt && jt <= lim && (t == null || jt > t)) t = jt;
+  return t;
+}
+const fmtWhen = t => new Date(t).toLocaleString("en-GB", {day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit"});
+
+/* ---------- Razieli submission snapshots (Snowflake) ---------- */
+// Every Razieli forecast submission saves the deals' ARR waterfall rows as they stood at that moment (the VP's and the region
+// leads' in separate tables). The view's lead's submissions are read from there; a submission the table doesn't have falls
+// back to the rebuild from Salesforce history.
+const SNOW_SERVER = "Snowflake";
+const snapRegionSql = () => V().regions ? ` AND REGION IN (${V().regions.map(r => `'${r.replace(/'/g, "")}'`).join(",")})` : "";
+const SNAP = {lists: {}, data: {}, busy: new Set(), err: null, stubs: new Map()};
+async function snow(sql) {
+  const res = await S.mcp.callTool(SNOW_SERVER, "sql_exec", {sql}, {cache: CACHE});
+  let p = res.payload;
+  if (typeof p === "string") { try { p = JSON.parse(p); } catch (e) { throw {code: "tool_error", message: p.slice(0, 300)}; } }
+  const rs = p && p.result_set;
+  if (!rs || !Array.isArray(rs.data)) throw {code: "tool_error", message: "Unexpected response from Snowflake."};
+  if (rs.resultSetMetaData && rs.resultSetMetaData.numRows > rs.data.length) throw {code: "tool_error", message: "Snowflake returned only part of the snapshot."};
+  return rs.data;
+}
+const safeId = v => /^[A-Za-z0-9_-]+$/.test(String(v)) ? String(v) : "";
+function snapFetch(key, sql, store, shape) {
+  if (store[key] || SNAP.busy.has(key) || !S.mcp) return;
+  SNAP.busy.add(key);
+  snow(sql).then(rows => { store[key] = shape(rows); }).catch(e => { SNAP.err = e; store[key] = shape([]); })
+    .finally(() => { SNAP.busy.delete(key); if (S.loaded && !S.loading) { if (needsReload()) load(false); else render(); } });
+}
+// The lead's submissions for the period's quarter: [{id, t, bad}]. A few saved snapshots repeat every row many times over
+// (a whole submission inflated 32x to 355x); no single deal-product ARR row is anywhere near $50M, so such a snapshot is
+// marked bad and that submission is rebuilt from Salesforce history instead.
+const SNAP_ROW_LIMIT = 50e6;
+const listKey = period => V().key + "|" + period.id;
+function requestSnapList(period) {
+  const [q, y] = period.id.split("-"), sn = V().snap;
+  snapFetch(listKey(period), `SELECT SUBMISSION_ID, TO_VARCHAR(MAX(SUBMITTED_AT), 'YYYY-MM-DD"T"HH24:MI:SS.FF3'), MAX(IFF(ARR_END_DATE_C = '${period.p1}', ARR_DOLLAR_C, NULL)) FROM ${sn.table} WHERE SUBMITTED_BY_USER_ID = '${safeId(sn.user)}' AND FISCAL_QUARTER = '${safeId(q)}' AND FISCAL_YEAR = ${Number(y)} GROUP BY 1`,
+    SNAP.lists, rows => rows.map(r => ({id: r[0], t: Date.parse(r[1] + "Z"), bad: Number(r[2]) > SNAP_ROW_LIMIT})).filter(s => s.id && isFinite(s.t)).sort((a, b) => a.t - b.t));
+}
+// One submission's deals at the quarter end, in the view's regions: Map(opportunity id -> {id, name, st, vp, region, owner, vals});
+// vp holds the lead's own forecast column (VP or region lead)
+function snapData(snap, period) {
+  const key = V().key + "|" + snap.id + "|" + period.p1, sn = V().snap;
+  if (SNAP.data[key]) return SNAP.data[key];
+  snapFetch(key, `SELECT OPPORTUNITY_C, OPPORTUNITY_NAME, OPPORTUNITY_STAGE, ${sn.col}, REGION, BIZDEV_OWNER, PRODUCT_NAME, ARR_DOLLAR_C FROM ${sn.table} WHERE SUBMISSION_ID = '${safeId(snap.id)}' AND ARR_END_DATE_C = '${period.p1}' AND ARR_DOLLAR_C <> 0${snapRegionSql()}`,
+    SNAP.data, rows => { const m = new Map(); rows.forEach(r => { let d = m.get(r[0]); if (!d) m.set(r[0], d = {id: r[0], name: r[1], st: r[2], vp: r[3], region: r[4], owner: r[5], vals: {}}); const p = r[6] || "Unknown product"; d.vals[p] = (d.vals[p] || 0) + (Number(r[7]) || 0); }); return m; });
+  return null;
+}
+// The forecast in effect at `upTo`: {t, snap} where snap is the saved submission, or null when only the time is known (rebuilt)
+function forecastAt(period, upTo) {
+  const lim = upTo == null ? Date.now() : upTo;
+  let sn = null;
+  for (const s of SNAP.lists[listKey(period)] || []) if (s.t <= lim && (!sn || s.t > sn.t)) sn = s;
+  const t = lastForecast(period, upTo);
+  // a #forecast-update post lands seconds after its submission; a snapshot saved shortly before it is that same submission
+  if (sn && sn.bad) return {t: sn.t, snap: null, bad: true};
+  if (sn && (t == null || t - sn.t < 15 * 60000)) return {t: sn.t, snap: sn};
+  return t != null ? {t, snap: null} : null;
+}
+const snapState = d => {
+  const b = WON.includes(d.st) ? "Won" : d.st === "Closed Lost" ? "Lost" : FC.includes(d.vp) ? "Forecast" : "Out";
+  return {exists: true, st: d.st, vp: d.vp, mad: null, inP: true, b, in: b === "Won" || b === "Forecast", vals: d.vals};
+};
+// A deal's state in forecast F: from the saved snapshot when there is one (deals missing from it were not in the forecast), else rebuilt
+function forecastState(o, F, period, data) {
+  if (!F.snap) return stateAt(o, F.t, period);
+  const d = data.get(o.id);
+  if (d) return {...snapState(d), mad: o.mad || null};
+  return {...stateAt(o, F.t, period), in: false};
+}
+// Deals a snapshot has that this load didn't fetch from Salesforce
+function snapStub(d) {
+  let o = SNAP.stubs.get(d.id);
+  if (!o) { o = mkOpp({Id: d.id, Name: d.name, Region__c: d.region, Owner: {Name: d.owner}, StageName: d.st, [V().field]: d.vp}); o.created = 0; SNAP.stubs.set(d.id, o); }
+  return o;
+}
+function snapItemsFrom(data) {
+  const out = [];
+  data.forEach(d => { const s = snapState(d); if (!s.in) return; const o = S.oppMap.get(d.id) || snapStub(d); out.push({o, s: {...s, mad: o.mad || null}}); });
+  return out;
+}
+
+function renderForecastTab(period, d1) {
+  const F = forecastAt(period, endMoment(d1)), btn = $("tabBtnFc"), q = period.short.replace(" YTD", "");
+  const T = F && F.t;
+  btn.innerHTML = `Forecast weekly snapshot${T ? `<span class="when">${esc(fmtWhen(T).replace(/ \d{4},/, ","))}</span>` : ""}`;
+  const data = F && F.snap ? snapData(F.snap, period) : null;
+  if (!T || (F.snap && !data)) {
+    $("snapFc").innerHTML = `<h2>${V().lead}'s forecast</h2><p class="note">${F && F.snap ? `Loading ${V().lead}'s saved submission from Snowflake…` : S.subsState === "loading" || !SNAP.lists[listKey(period)] ? `Looking up ${V().leadFull}'s forecast submissions…` : `No ${esc(q)} forecast submission found on or before ${dmy(d1)}.`}</p>`;
+    ["fcProdTable", "fcAllTable"].forEach(id => $(id).innerHTML = ""); $("fcAllSummary").textContent = "All deals in the forecast";
+    return;
+  }
+  const items = data ? snapItemsFrom(data) : snapItems(period, T), jn = judgmentOn(iso(new Date(T))), J = !S.sel && judgmentFor(period.id);
+  renderSnapBlock("snapFc", "fc", {
+    title: `${V().lead}'s forecast, ${fmtWhen(T)}`, fileTag: `forecast-${V().key}-${period.id}-${iso(new Date(T))}`,
+    note: `${V().leadFull}'s last ${q} submission on or before ${dmy(d1)} (the compare end date). Won and committed deals plus open Commit and Best Case (Next Q included), ` +
+      (data ? "exactly as Razieli saved them at submission (Snowflake submission snapshot)." : `with each deal's status and ARR rebuilt from Salesforce history, because ${F.bad ? "Razieli's saved snapshot for this submission in Snowflake is corrupted (its ARR is many times too high)" : SNAP.err ? "Snowflake couldn't be read" : "Snowflake has no saved snapshot for this submission"}.`) +
+      (S.sel ? ` ${V().lead}'s judgment is hidden while a product filter is on, since it has no product split.`
+        : !jn && J ? ` Razieli keeps only ${V().lead}'s current${J.prevSubmitted ? " and previous" : ""} judgment (${dmy(J.submitted)}${J.prevSubmitted ? ` and ${dmy(J.prevSubmitted)}` : ""}), so there is none for this forecast.` : ""),
+    items, jn, onLabel: "in this forecast"
+  });
+  const agg = {};
+  for (const it of items) for (const p in it.s.vals) { const x = agg[p] = agg[p] || [0, 0]; it.s.b === "Won" ? x[0] += it.s.vals[p] : x[1] += it.s.vals[p]; }
+  const ps = Object.keys(agg).filter(p => (!S.sel || S.sel.has(p)) && Math.round(agg[p][0] + agg[p][1])).sort((a, b) => (agg[b][0] + agg[b][1]) - (agg[a][0] + agg[a][1]));
+  const tot = ps.reduce((t, p) => [t[0] + agg[p][0], t[1] + agg[p][1]], [0, 0]);
+  const row = (lab, x, cls) => `<tr${cls ? ` class="${cls}"` : ""}><td>${esc(lab)}</td><td class="n">${fmt(x[0])}</td><td class="n">${fmt(x[1])}</td><td class="n">${fmt(x[0] + x[1])}</td></tr>`;
+  $("fcProdNote").textContent = `In this forecast, ${S.sel ? `the ${S.sel.size} product${S.sel.size === 1 ? "" : "s"} in your filter` : "all products"}. Judgment is not split by product.`;
+  $("fcProdTable").innerHTML = `<thead><tr><th>Product</th><th class="n">Won</th><th class="n">Open fcst</th><th class="n">Total</th></tr></thead><tbody>` + ps.map(p => row(p, agg[p])).join("") + row("Total", tot, "tot") + "</tbody>";
+  const rows = items.filter(it => Math.round(sv(it))).sort((a, b) => (a.s.b === b.s.b ? 0 : a.s.b === "Won" ? -1 : 1) || sv(b) - sv(a));
+  const T1 = endMoment(d1);
+  $("fcAllSummary").textContent = `All ${rows.length} deals in this forecast`;
+  $("fcAllTable").innerHTML = `<thead><tr><th>Deal</th><th>In the forecast</th><th>On ${esc(dmy(d1).slice(0, -5))}</th><th>Owner</th><th>Min ARR date</th><th class="n">ARR</th></tr></thead><tbody>` +
+    rows.map(it => `<tr><td>${snapCell(it)}</td><td>${esc(statusAt(it.s))}</td><td>${esc(statusAt(stateAt(it.o, T1, period)))}</td><td>${esc(it.o.owner || "")}</td><td class="fromto">${md(it.s.mad)}</td><td class="n">${full(sv(it))}</td></tr>`).join("") +
+    `<tr class="tot"><td colspan="5">Total</td><td class="n">${full(sum(rows, sv))}</td></tr></tbody>`;
+}
+// Company / region tabs: each keeps its own compare dates and Pipeline / Forecast choice
+function renderViewBar() {
+  $("views").innerHTML = VIEWS.map(v => `<button type="button" role="tab" data-view="${v.key}" aria-pressed="${v.key === V().key}" aria-selected="${v.key === V().key}">${esc(v.label)}<small>${esc(v.lead)}</small></button>`).join("");
+  $("views").querySelectorAll("button").forEach(b => b.addEventListener("click", () => setView(b.dataset.view)));
+}
+function setView(key) {
+  if (key === V().key) return;
+  S.vstate[V().key] = {d0: $("d0").value, d1: $("d1").value, tab: S.tab};
+  S.view = VIEWS.some(v => v.key === key) ? key : "co"; store.set("view", S.view);
+  const st = S.vstate[S.view] || {d0: store.get("d0:" + S.view, $("d0").value), d1: todayISO(), tab: store.get("tab:" + S.view, S.tab)};
+  $("d0").value = st.d0 < minStart() ? minStart() : st.d0; $("d1").value = st.d1;
+  S.sel_step = null; S.snapSel = {pipe: null, fc: null};
+  updateRangeBtn(); renderViewBar(); setTab(st.tab);
+  if (S.cal) renderCal();
+  if (needsReload()) load(false); else render();
+}
+function setTab(tab) {
+  S.tab = tab === "fc" ? "fc" : "pipe"; store.set("tab:" + V().key, S.tab);
+  document.body.dataset.tab = S.tab;
+  $("tabPipe").hidden = S.tab !== "pipe"; $("tabFc").hidden = S.tab !== "fc";
+  $("tabBtnPipe").setAttribute("aria-selected", String(S.tab === "pipe")); $("tabBtnFc").setAttribute("aria-selected", String(S.tab === "fc"));
+}
+function renderProdTable(d0, d1) {
+  const agg = {};
+  for (const r of ROWS) {
+    if (r.b.in) for (const p in r.b.vals) { const x = agg[p] = agg[p] || [0, 0, 0]; r.b.b === "Won" ? x[0] += r.b.vals[p] : x[1] += r.b.vals[p]; }
+    if (r.a.in) for (const p in r.a.vals) { const x = agg[p] = agg[p] || [0, 0, 0]; x[2] += r.a.vals[p]; }
+  }
+  const ps = Object.keys(agg).filter(p => (!S.sel || S.sel.has(p)) && (Math.round(agg[p][0] + agg[p][1]) || Math.round(agg[p][2]))).sort((a, b) => (agg[b][0] + agg[b][1]) - (agg[a][0] + agg[a][1]));
+  const row = (lab, x, cls) => { const d = x[0] + x[1] - x[2]; return `<tr${cls ? ` class="${cls}"` : ""}><td>${esc(lab)}</td><td class="n">${fmt(x[0])}</td><td class="n">${fmt(x[1])}</td><td class="n">${fmt(x[0] + x[1])}</td><td class="n">${fmt(x[2])}</td><td class="n ${d < 0 ? "neg" : d > 0 ? "pos" : ""}">${d > 0 ? "+" : ""}${fmt(d)}</td></tr>`; };
+  $("prodNote").textContent = S.sel ? `The ${S.sel.size} product${S.sel.size === 1 ? "" : "s"} in your filter.` : "All products.";
+  const tot = ps.reduce((t, p) => [t[0] + agg[p][0], t[1] + agg[p][1], t[2] + agg[p][2]], [0, 0, 0]);
+  $("prodTable").innerHTML = `<thead><tr><th>Product</th><th class="n">Won</th><th class="n">Open fcst</th><th class="n">${esc(dmy(d1).slice(0, -5))}</th><th class="n">${esc(dmy(d0).slice(0, -5))}</th><th class="n">Change</th></tr></thead><tbody>` +
+    ps.map(p => row(p, agg[p])).join("") + row("Total", tot, "tot") + "</tbody>";
+}
+// What the waterfall compares, per tab. Pipeline: deal status at the start of the start date and at the end of the end date.
+// Forecast: Shaka's latest submission on or before each date, plus the judgment that went with each (when Razieli still has it).
+function bridgeContext(period, d0, d1) {
+  const short = d => dmy(d).slice(0, -5);
+  if (S.tab !== "fc") return {mode: "pipe", ok: true, T0: Date.parse(d0 + "T00:00:00Z"), T1: endMoment(d1), lab0: `${short(d0)} pipeline`, lab1: `${short(d1)} pipeline`,
+    at0: `on ${dmy(d0)}`, at1: `on ${dmy(d1)}`, title: `Pipeline from ${dmy(d0)} to ${dmy(d1)}`, what: "Pipeline (won plus open Commit and Best Case)"};
+  const G0 = forecastAt(period, endMoment(d0)), G1 = forecastAt(period, endMoment(d1)), q = period.short.replace(" YTD", "");
+  const D0 = G0 && G0.snap ? snapData(G0.snap, period) : null, D1 = G1 && G1.snap ? snapData(G1.snap, period) : null;
+  if ((G0 && G0.snap && !D0) || (G1 && G1.snap && !D1)) return {mode: "fc", ok: false, title: "Forecast movement", missing: `Loading ${V().lead}'s saved submissions from Snowflake…`};
+  const F0 = G0 && G0.t, F1 = G1 && G1.t;
+  const day = F => iso(new Date(F)), J = !S.sel ? judgmentFor(period.id) : null;
+  const which = F => J ? judgmentRange(J, day(F), day(F)).end : null;
+  const when = F => fmtWhen(F).replace(/ \d{4},/, ",");
+  const extra = [];
+  [D0, D1].forEach(D => D && D.forEach(d => { if (!S.oppMap.has(d.id) && !extra.some(o => o.id === d.id)) extra.push(snapStub(d)); }));
+  return {mode: "fc", ok: !!(F0 && F1), F0, F1, T0: F0, T1: F1, extra, exact: !!(D0 && D1),
+    fa: G0 ? o => forecastState(o, G0, period, D0) : null, fb: G1 ? o => forecastState(o, G1, period, D1) : null,
+    lab0: F0 ? `${short(day(F0))} forecast` : "", lab1: F1 ? `${short(day(F1))} forecast` : "",
+    at0: F0 ? `in the ${when(F0)} forecast` : "", at1: F1 ? `in the ${when(F1)} forecast` : "",
+    title: F0 && F1 ? `Forecast from ${when(F0)} to ${when(F1)}` : "Forecast movement",
+    what: `${V().lead}'s ${q} forecast (won plus open Commit and Best Case, deals as they stood at each submission, ${D0 && D1 ? "from Razieli's saved snapshots" : D0 || D1 ? "one end from Razieli's saved snapshot and the other rebuilt from Salesforce history" : "rebuilt from Salesforce history"}${(G0 && G0.bad) || (G1 && G1.bad) ? "; Razieli's saved snapshot for " + (G0 && G0.bad && G1 && G1.bad ? "both submissions is" : "the " + (G0 && G0.bad ? "starting" : "ending") + " submission is") + " corrupted in Snowflake, so it is rebuilt" : ""})`,
+    missing: !F1 ? `No ${q} forecast submission found on or before ${dmy(d1)}.` : !F0 ? `No ${q} forecast submission found on or before ${dmy(d0)}, so there is nothing to compare from. Pick a later start date.` : "",
+    J, jr: J && F0 && F1 ? {start: which(F0), end: which(F1)} : null};
+}
+function renderBridge(ctx) {
+  if (!ctx.ok) {
+    $("bridgeTitle").textContent = ctx.title; $("bridgeNote").textContent = ctx.missing;
+    ["bridge", "bridgeDetail", "kpis"].forEach(id => $(id).innerHTML = "");
+    return;
+  }
+  const aug = sum(ROWS.filter(r => r.a.in), v0), today = sum(ROWS.filter(r => r.b.in), v1);
+  const steps = STEPS.map(s => ({key: s.k, lab: s.lab, val: stepVal(s.k)})).filter(s => Math.round(s.val) !== 0 || ["new", "upgrade", "inc", "dec", "down", "lost"].includes(s.key));
+  const bars = [{key: "start", lab: ctx.lab0, val: aug, tot: true}, ...steps, {key: "end", lab: ctx.lab1, val: today, tot: true}];
+  // Judgment belongs to the forecast, and is a VP-level number with no product split, so only the all-products Forecast view has it
+  const jAll = ctx.J || null, jr0 = ctx.jr;
+  const jd = jr0 && jr0.end ? jAll : null, jr = jr0;
+  const jEnd = jd ? (jr.end === "cur" ? jd.val : jd.prev) : 0;
+  if (jd && jr.start) {
+    // the starting forecast has its own judgment: it sits in the starting balance, and only the change shows in purple
+    const jStart = jr.start === "cur" ? jd.val : jd.prev;
+    bars[0] = {...bars[0], lab: `${ctx.lab0} incl. judgment`, val: aug + jStart, j: jStart};
+    bars.pop();
+    if (Math.round(jEnd - jStart)) bars.push({key: "jchg", lab: "Judgment change", val: jEnd - jStart, judg: true});
+    bars.push({key: "endj", lab: `${ctx.lab1} incl. judgment`, val: today + jEnd, tot: true});
+  } else if (jd) bars.push({key: jr.end === "cur" ? "judg" : "jprev", lab: `${V().lead}'s judgment`, val: jEnd, judg: true}, {key: "endj", lab: "Incl. judgment", val: today + jEnd, tot: true});
+  const W = 1000, H = 330, top = 30, bot = 70, left = 10, n = bars.length, gap = n > 9 ? 10 : 16, bw = (W - left * 2 - gap * (n - 1)) / n;
+  let run = bars[0].val, peak = Math.max(bars[0].val, today), low = Math.min(bars[0].val, today);
+  bars.slice(1).forEach(b => { run = b.tot ? b.val : run + b.val; peak = Math.max(peak, run); low = Math.min(low, run); });
+  // The axis starts just below the lowest point instead of at $0, so changes that are small next to the totals stay visible;
+  // total columns are then cut, and say so with a break mark and the axis start.
+  const swing = Math.max(peak - low, Math.abs(peak) * 0.005, 1);
+  const base = low > 0 ? Math.max(0, low - swing * 1.4) : low;
+  const maxv = peak + swing * 0.15;
+  const cut = base > 0;
+  const y = x => top + (H - top - bot) * (1 - (x - base) / (maxv - base || 1));
+  const fs = n > 9 ? 13 : 14, vfs = n > 9 ? 14 : 17;
+  let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Bridge from ${full(aug)} to ${full(today)}">`;
+  run = 0;
+  bars.forEach((b, i) => {
+    const x = left + i * (bw + gap); let y0, y1, col;
+    if (b.tot) { y0 = y(b.val); y1 = y(base); col = "var(--ink)"; run = b.val; }
+    else { const a = run, c = run + b.val; y0 = y(Math.max(a, c)); y1 = y(Math.min(a, c)); col = b.judg ? "var(--judg)" : b.val >= 0 ? "var(--in)" : "var(--out)"; run = c; }
+    const h = Math.max(1.5, y1 - y0);
+    s += `<g class="col${S.sel_step === b.key ? " sel" : ""}" data-k="${b.key}" tabindex="0" role="button" aria-label="Show deals: ${esc(b.lab)}"><rect class="hit" x="${x - gap / 2 + 1}" y="2" width="${bw + gap - 2}" height="${H - 4}" rx="6" fill="transparent"/>`;
+    s += `<rect x="${x}" y="${y0}" width="${bw}" height="${h}" rx="3" fill="${col}"/>`;
+    // break mark on cut total columns: a gap in the bar's background colour near its foot
+    if (b.tot && cut) { const by = y1 - 16; s += `<path d="M${x - 2} ${by + 4} L${x + bw + 2} ${by - 4} L${x + bw + 2} ${by + 2} L${x - 2} ${by + 10} Z" fill="var(--surface)"/>`; }
+    const lv = b.tot ? fmt(b.val) : (b.val >= 0 ? "+" : "") + fmt(b.val);
+    s += `<text x="${x + bw / 2}" y="${y0 - 8}" text-anchor="middle" font-size="${vfs}" font-weight="700" fill="var(--ink)" font-family="Archivo,sans-serif">${lv}</text>`;
+    const w = b.lab.split(" "), m = Math.ceil(w.length / 2);
+    s += `<text x="${x + bw / 2}" y="${H - bot + 22}" text-anchor="middle" font-size="${fs}" fill="var(--muted)" font-family="Archivo,sans-serif">${esc(w.slice(0, m).join(" "))}</text><text x="${x + bw / 2}" y="${H - bot + 40}" text-anchor="middle" font-size="${fs}" fill="var(--muted)" font-family="Archivo,sans-serif">${esc(w.slice(m).join(" "))}</text></g>`;
+    if (i < n - 1) { const ny = y(run); s += `<line x1="${x + bw}" x2="${x + bw + gap}" y1="${ny}" y2="${ny}" stroke="var(--muted)" stroke-dasharray="3 3"/>`; }
+  });
+  if (cut) s += `<text x="${left}" y="${H - 2}" font-size="12" fill="var(--muted)" font-family="Archivo,sans-serif">Axis starts at ${esc(fmt(base))}, so total columns are cut</text>`;
+  s += "</svg>";
+  $("bridge").innerHTML = s;
+  document.querySelectorAll("#bridge .col").forEach(g => {
+    const go = () => { S.sel_step = S.sel_step === g.dataset.k ? null : g.dataset.k; renderBridge(ctx); if (S.sel_step) $("bridgeDetail").scrollIntoView({behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "nearest"}); };
+    g.addEventListener("click", go);
+    g.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } });
+  });
+  $("bridgeTitle").textContent = ctx.title;
+  const d = today - aug;
+  $("bridgeNote").textContent = `${ctx.what} for ${periodById($("period").value).short} went from ${full(aug)} ${ctx.at0} to ${full(today)} ${ctx.at1}, a change of ${signed(d)}.` +
+    (ctx.mode === "fc" && ctx.F0 === ctx.F1 ? " Both dates fall on the same submission, so nothing moved." : "") +
+    (jd ? (jr.start === "prev" && jr.end === "cur"
+      ? ` ${V().lead}'s judgment went from ${signed(jd.prev)} (submitted ${dmy(jd.prevSubmitted)}) to ${signed(jd.val)} (submitted ${dmy(jd.submitted)}), so the forecast including judgment is ${full(today + jEnd)}.`
+      : ` Adding ${V().lead}'s judgment of ${signed(jEnd)} (submitted ${dmy(jr.end === "cur" ? jd.submitted : jd.prevSubmitted)}) gives ${full(today + jEnd)}.` +
+        (jr.start === jr.end ? "" : ` Razieli keeps only the current and previous judgment, so there is none for the starting forecast and the judgment change can't be shown.`))
+    : jr0 ? ` Razieli keeps only ${V().lead}'s current${jAll.prevSubmitted ? " and previous" : ""} judgment (submitted ${dmy(jAll.submitted)}${jAll.prevSubmitted ? ` and ${dmy(jAll.prevSubmitted)}` : ""}), so there is none for this forecast.`
+    : ctx.mode === "fc" && S.sel && judgmentFor(periodById($("period").value).id) ? ` ${V().lead}'s judgment is hidden while a product filter is on, since it has no product split.`
+    : ctx.mode === "pipe" ? ` ${V().lead}'s judgment is part of the forecast, so it is in the Forecast weekly snapshot tab's waterfall.` : "") +
+    " Click any column to see the deals behind it.";
+  const conv = sum(ROWS.filter(r => r.mv === "conv"), v1);
+  const wonA = sum(ROWS.filter(r => r.a.in && r.a.b === "Won"), v0), wonB = sum(ROWS.filter(r => r.b.in && r.b.b === "Won"), v1);
+  const inn = stepVal("new") + stepVal("upgrade") + stepVal("pullin"), out = -(stepVal("down") + stepVal("lost") + stepVal("pushout"));
+  const net = stepVal("inc") + stepVal("dec") + stepVal("minor");
+  $("kpis").innerHTML = [[fmt(inn), "moved into the forecast"], [fmt(out), "moved out of the forecast"], [(net >= 0 ? "+" : "") + fmt(net), "net ARR change on deals that stayed"], [`${fmt(wonA)} → ${fmt(wonB)}`, `won or committed (${fmt(conv)} converted from forecast)`]]
+    .map(k => `<div><div class="v">${k[0]}</div><div class="l">${k[1]}</div></div>`).join("");
+  renderDetail(bars, ctx);
+}
+function dealCell(r) {
+  return `<a href="${SF_URL(r.o.id)}" target="_blank" rel="noopener">${esc(r.o.name)}</a><br><span class="chip">${esc(prodLabel(r))}</span> <span class="chip">${esc(r.o.type || "")}</span> <span class="chip">${esc(r.o.region || "")}</span>`;
+}
+const statusAt = s => s.b === "NotExist" ? "Did not exist" : fc(s.st, s.vp);
+function moveTable(rows, kind) {
+  rows = rows.filter(r => Math.round(v0(r)) || Math.round(v1(r)));
+  const amt = r => kind === "in" ? v1(r) : kind === "out" ? -v0(r) : kind === "delta" ? v1(r) - v0(r) : v1(r);
+  rows.sort((a, b) => Math.abs(amt(b)) - Math.abs(amt(a)));
+  if (!rows.length) return '<p class="note">No deals for this selection.</p>';
+  const head = kind === "delta" ? `<th class="n">Start</th><th class="n">End</th><th class="n">Change</th>` : `<th class="n">ARR</th>`;
+  return `<div class="scroll"><table><thead><tr><th>Deal</th><th>Forecast / stage</th><th>Min ARR date</th><th>Owner</th><th>Last change</th>${head}</tr></thead><tbody>` + rows.map(r => {
+    const d0 = r.a.mad, d1 = r.b.mad;
+    const st = `${esc(statusAt(r.a))} <i>→</i> ${esc(statusAt(r.b))}${r.a.st && r.a.exists && r.a.st !== r.b.st ? `<br><i>${esc(r.a.st)} → ${esc(r.b.st)}</i>` : `<br><i>${esc(r.b.st || "")}</i>`}`;
+    const val = kind === "delta" ? `<td class="n">${full(v0(r))}</td><td class="n">${full(v1(r))}</td><td class="n ${amt(r) < 0 ? "neg" : "pos"}">${signed(amt(r))}</td>` : `<td class="n ${amt(r) < 0 ? "neg" : kind === "in" ? "pos" : ""}">${kind === "info" ? full(amt(r)) : signed(amt(r))}${r.o.arr ? "" : "*"}</td>`;
+    return `<tr><td>${dealCell(r)}</td><td class="fromto">${st}</td><td class="fromto">${d0 !== d1 && r.a.exists ? `${md(d0)} <i>→</i> ${md(d1)}` : md(d1)}</td><td>${esc(r.o.owner || "")}</td><td class="fromto">${r.when ? dmy(r.when).slice(0, -5) : ""}<br><i>${esc(r.by || "")}</i></td>${val}</tr>`;
+  }).join("") + `</tbody></table></div>`;
+}
+function snapTable(rows, which) {
+  const st = which === "a" ? r => r.a : r => r.b, val = which === "a" ? v0 : v1;
+  rows = rows.filter(r => Math.round(val(r))).sort((x, y) => (st(x).b === st(y).b ? 0 : st(x).b === "Won" ? -1 : 1) || val(y) - val(x));
+  return `<div class="scroll"><table><thead><tr><th>Deal</th><th>Status ${which === "a" ? "at start" : "at end"}</th><th>Status ${which === "a" ? "at end" : "at start"}</th><th>Min ARR date</th><th>Owner</th><th class="n">ARR</th></tr></thead><tbody>` +
+    rows.map(r => `<tr><td>${dealCell(r)}</td><td>${esc(statusAt(st(r)))}</td><td>${esc(statusAt(which === "a" ? r.b : r.a))}</td><td class="fromto">${md(st(r).mad)}</td><td>${esc(r.o.owner || "")}</td><td class="n">${full(val(r))}</td></tr>`).join("") +
+    `<tr class="tot"><td colspan="5">Total, ${rows.length} deals</td><td class="n">${full(sum(rows, val))}</td></tr></tbody></table></div>`;
+}
+function renderDetail(bars, ctx) {
+  const el = $("bridgeDetail");
+  if (!S.sel_step) { el.innerHTML = ""; return; }
+  const b = bars.find(x => x.key === S.sel_step);
+  if (!b) { S.sel_step = null; el.innerHTML = ""; return; }
+  let body, desc, rows;
+  if (["judg", "jprev", "jchg", "endj"].includes(b.key)) {
+    const jd = ctx.J, jr = ctx.jr, today = sum(ROWS.filter(r => r.b.in), v1);
+    const both = jr.start === "prev" && jr.end === "cur", jEnd = jr.end === "cur" ? jd.val : jd.prev;
+    const title = {judg: `${V().lead}'s judgment: ${signed(jd.val)}`, jprev: `${both ? "Previous judgment" : V().lead + "'s judgment"}: ${signed(jd.prev)}`, jchg: `Judgment change: ${signed(jd.val - jd.prev)}`, endj: `Forecast incl. judgment: ${full(b.val)}`}[b.key];
+    const cell = v => `<td class="n ${v < 0 ? "neg" : v > 0 ? "pos" : ""}">${v ? signed(v) : "–"}</td>`;
+    const cols = both || b.key === "jchg" ? ["prev", "cur", "chg"] : [jr.end];
+    const head = {prev: "Previous", cur: "Current", chg: "Change"};
+    const pick = (it, c) => c === "prev" ? it[1] : c === "cur" ? it[2] : it[2] - it[1];
+    const tot = c => c === "prev" ? jd.prev : c === "cur" ? jd.val : jd.val - jd.prev;
+    el.innerHTML = `<div class="dh"><h3>${title}</h3><button type="button" id="closeDetail">Close</button></div>` +
+      `<p class="note" style="margin-bottom:8px">${V().leadFull}'s ${V().role} judgment for ${esc(periodById($("period").value).short.replace(" YTD", ""))} from the Razieli judgment notes, added on top of won + Commit + Best Case. The current judgment was submitted ${dmy(jd.submitted)}${jd.prevSubmitted ? ` and the previous one ${dmy(jd.prevSubmitted)}` : ""}; Razieli keeps no judgment from before that. Snapshot taken ${dmy(JUDGMENT_AS_OF)}.</p>` +
+      `<div class="scroll"><table><thead><tr><th>Item</th>${cols.map(c => `<th class="n">${head[c]}</th>`).join("")}</tr></thead><tbody>` +
+      (b.key === "endj" ? `<tr><td>Deals ${esc(ctx.at1)} (won + Commit + Best Case)</td>${cols.map(c => c === "chg" ? "<td></td>" : `<td class="n">${full(today)}</td>`).join("")}</tr>` : "") +
+      jd.items.map(it => `<tr><td>${esc(it[0])}</td>${cols.map(c => cell(pick(it, c))).join("")}</tr>`).join("") +
+      `<tr class="tot"><td>Total${b.key === "endj" ? " incl. forecast" : " judgment"}</td>${cols.map(c => b.key === "endj" && c !== "chg" ? `<td class="n">${full(today + tot(c))}</td>` : `<td class="n">${signed(tot(c))}</td>`).join("")}</tr></tbody></table></div>`;
+    $("closeDetail").addEventListener("click", () => { S.sel_step = null; renderBridge(ctx); });
+    return;
+  }
+  if (b.key === "start") { rows = ROWS.filter(r => r.a.in); desc = `Won, Commit and Best Case ${ctx.at0}, with status as of then.` + (b.j != null ? ` The column also includes ${V().lead}'s judgment at that submission, ${signed(b.j)}; the deals below total ${full(sum(rows, v0))}.` : ""); body = snapTable(rows, "a"); }
+  else if (b.key === "end") { rows = ROWS.filter(r => r.b.in); desc = `Won, Commit and Best Case ${ctx.at1}.`; body = snapTable(rows, "b"); }
+  else {
+    const st = STEPS.find(s => s.k === b.key); desc = st.desc + (["lost"].includes(b.key) ? " * no ARR rows any more; value split from the Min ARR amount." : "");
+    rows = ROWS.filter(r => stepOf(r) === b.key);
+    body = moveTable(rows, ["inc", "dec", "minor"].includes(b.key) ? "delta" : st.sign > 0 ? "in" : "out");
+  }
+  const n = rows.filter(r => Math.round(v0(r)) || Math.round(v1(r))).length;
+  el.innerHTML = `<div class="dh"><h3>${esc(b.lab)}: ${n} deals, ${b.tot ? full(b.val) : signed(b.val)}</h3><button type="button" id="closeDetail">Close</button></div><p class="note" style="margin-bottom:8px">${esc(desc)}</p>${body}`;
+  $("closeDetail").addEventListener("click", () => { S.sel_step = null; renderBridge(ctx); });
+}
+function renderMoves() {
+  const groups = [
+    ["Moved in", ["new", "upgrade", "pullin"], "in"],
+    ["Moved out", ["down", "lost", "pushout"], "out"],
+    ["ARR increased", ["inc"], "delta"],
+    ["ARR decreased", ["dec"], "delta"],
+  ];
+  let html = groups.map(([title, keys, kind]) => {
+    const rows = ROWS.filter(r => keys.includes(stepOf(r)));
+    const t = sum(keys, k => stepVal(k));
+    const parts = keys.length > 1 ? keys.map(k => `${STEPS.find(s => s.k === k).lab} ${fmt(stepVal(k))}`).join(", ") + "." : STEPS.find(s => s.k === keys[0]).desc;
+    return `<div class="movehead"><h3>${title}</h3><span class="amt ${t < 0 ? "neg" : t > 0 ? "pos" : ""}">${signed(t)}</span></div><p class="note" style="margin-bottom:8px">${esc(parts)}${kind === "out" ? " * Value split from the Min ARR amount; the deal has no ARR rows." : ""}</p>${moveTable(rows, kind)}`;
+  }).join("");
+  const conv = ROWS.filter(r => r.mv === "conv");
+  html += `<div class="movehead"><h3>Converted to won</h3><span class="amt">${full(sum(conv, v1))}</span></div><p class="note" style="margin-bottom:8px">In Commit or Best Case at the start, Closed Won or Committed at the end. Already in the forecast both times; any ARR change on these deals is counted above.</p>${moveTable(conv, "info")}`;
+  $("moves").innerHTML = html;
+}
+function renderAll(d1) {
+  const rows = ROWS.filter(r => r.b.in && Math.round(v1(r))).sort((a, b) => (a.b.b === b.b.b ? 0 : a.b.b === "Won" ? -1 : 1) || v1(b) - v1(a));
+  $("allSummary").textContent = `All ${rows.length} deals in the forecast on ${dmy(d1)}`;
+  $("allTable").innerHTML = `<thead><tr><th>Deal</th><th>Status</th><th>Type</th><th>Region</th><th>Owner</th><th>Min ARR date</th><th class="n">ARR</th></tr></thead><tbody>` +
+    rows.map(r => `<tr><td><a href="${SF_URL(r.o.id)}" target="_blank" rel="noopener">${esc(r.o.name)}</a><br><span class="chip">${esc(prodLabel(r))}</span></td><td>${esc(statusAt(r.b))}</td><td>${esc(r.o.type || "")}</td><td>${esc(r.o.region || "")}</td><td>${esc(r.o.owner || "")}</td><td class="fromto">${md(r.b.mad)}</td><td class="n">${full(v1(r))}</td></tr>`).join("") +
+    `<tr class="tot"><td colspan="6">Total</td><td class="n">${full(sum(rows, v1))}</td></tr></tbody>`;
+}
+function render() {
+  if (!S.loaded) return;
+  const period = periodById($("period").value), d0 = $("d0").value, d1 = $("d1").value;
+  requestSnapList(period);
+  const ctx = bridgeContext(period, d0, d1);
+  ROWS = ctx.ok ? compute(period, ctx.T0, ctx.T1, ctx.fa, ctx.fb, ctx.extra) : [];
+  renderSnapBlock("snapPipe", "pipe", {
+    title: `Where the ${V().regions ? V().label + " " : ""}pipeline stands on ${dmy(d1)}`, fileTag: `pipeline-${V().key}-${period.id}-${d1}`,
+    note: `Closed won and committed deals, plus open deals ${V().key === "co" ? "the VP forecast" : V().leadFull + "'s region lead forecast"} has in Commit or Best Case (Next Q included), with their status ${d1 >= todayISO() ? "right now" : `at the end of ${dmy(d1)}`} (the compare end date). ${V().lead}'s judgment is in the Forecast weekly snapshot tab.`,
+    items: snapItems(period, endMoment(d1)), jn: null, onLabel: `on ${dmy(d1)}`
+  });
+  $("tabBtnPipe").innerHTML = `Pipeline status<span class="when">${esc(dmy(d1).slice(0, -5))}</span>`;
+  renderForecastTab(period, d1);
+  renderBridge(ctx); renderMoves();
+  // the product table and deal list live in the Pipeline tab; switching tabs renders again
+  if (ctx.mode === "pipe") { renderProdTable(d0, d1); renderAll(d1); }
+}
+
+/* ---------- status & errors ---------- */
+function setStatus(kind, text) {
+  $("status").innerHTML = `<span><span class="dot${kind === "ok" ? "" : " " + kind}"></span>${esc(text)}</span>` + (S.loaded && !S.loading ? ` <button type="button" class="btn" id="refresh">Refresh from Salesforce</button>` : "") + (S.loading ? `<div class="progress" style="flex-basis:100%"><div id="prog"></div></div>` : "");
+  const r = $("refresh"); if (r) r.addEventListener("click", () => load(true));
+}
+function errorBanner(e) {
+  const code = e && e.code;
+  const msg = {
+    needs_reauth: `Your ${SF_SERVER} connector needs to be reconnected. Reconnect it in claude.ai Settings → Connectors, then reload this page.`,
+    server_not_connected: `This dashboard reads Salesforce through the "${SF_SERVER}" connector, which isn't connected for you. Add it in claude.ai Settings → Connectors, then reload.`,
+    selection_required: `You have more than one "${SF_SERVER}" connector. Choose which one this page should use when prompted, then reload.`,
+    not_in_manifest: `Salesforce access is turned off for this page. Turn it on from the page's Permissions menu, then reload.`,
+    blocked_by_policy: `Your organization's policy blocks this Salesforce query for your account.`,
+    approval_required: `Your organization requires approval for this Salesforce tool, which pages can't request yet.`,
+    server_unavailable: `Salesforce didn't answer in time. Try Refresh in a minute.`,
+    tool_error: `Salesforce returned an error: ${(e && e.message) || ""}`,
+    not_granted: `This view can't reach Salesforce. Open the dashboard in claude.ai to load live data.`,
+    capability_disabled: `This view can't reach Salesforce. Open the dashboard in claude.ai to load live data.`
+  }[code] || `Couldn't load Salesforce data${e && e.message ? ": " + e.message : "."}`;
+  $("banner").innerHTML = `<div class="banner">${esc(msg)}</div>`;
+}
+
+/* ---------- load ---------- */
+async function load(refresh) {
+  if (S.loading) return;
+  const period = periodById($("period").value), d0 = loadFrom();
+  if (!S.mcp) return;
+  S.loading = true; refreshing = !!refresh; $("banner").innerHTML = "";
+  document.body.setAttribute("data-loading", "");
+  setStatus("stale", `Loading ${period.short} from Salesforce…`);
+  $("apply").disabled = true;
+  try {
+    S.opps = await loadData(period, d0);
+    S.oppMap = new Map(S.opps.map(o => [o.id, o]));
+    S.loaded = {period: period.id, d0};
+    const ps = new Set(); S.opps.forEach(o => Object.keys(o.arr || o.li || {}).forEach(p => ps.add(p)));
+    S.products = [...ps].sort();
+    if (S.sel) S.sel = new Set([...S.sel].filter(p => ps.has(p)));
+    S.loading = false;
+    renderProductPicker();
+    render();
+    if (needsReload()) { setTimeout(() => load(false), 0); }
+    const at = S.storedAt ? new Date(S.storedAt) : new Date();
+    setStatus("ok", `Live from Salesforce · loaded ${at.toLocaleString("en-GB", {day: "numeric", month: "short", hour: "2-digit", minute: "2-digit"})} · ${S.opps.length} opportunities checked`);
+  } catch (e) {
+    S.loading = false;
+    errorBanner(e);
+    setStatus("err", S.loaded ? "Showing the last data that loaded" : "No data loaded");
+  } finally {
+    refreshing = false; $("apply").disabled = false; document.body.removeAttribute("data-loading");
+  }
+}
+function needsReload() {
+  if (!S.loaded) return true;
+  return S.loaded.period !== periodById($("period").value).id || loadFrom() < S.loaded.d0;
+}
+// History must reach back to the start date and to the last forecast, whichever is earlier
+function loadFrom() {
+  const d0 = $("d0").value, period = periodById($("period").value);
+  // the forecast as of the start date can be older than the start date itself
+  const F = forecastAt(period, endMoment(d0)) || forecastAt(period, endMoment($("d1").value)), t = F && F.t;
+  const f = t ? iso(new Date(t)) : d0;
+  return f < d0 ? f : d0;
+}
+
+
+/* ---------- calendar range picker ---------- */
+const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const addMonths = (ym, n) => { const d = new Date(Date.UTC(ym[0], ym[1] + n, 1)); return [d.getUTCFullYear(), d.getUTCMonth()]; };
+function updateRangeBtn() { $("rangeBtn").textContent = `${dmy($("d0").value)}  →  ${dmy($("d1").value)}`; }
+function onDatesChanged() {
+  if ($("d0").value >= $("d1").value) $("d0").value = iso(new Date(Date.parse($("d1").value + "T00:00:00Z") - DAY));
+  store.set("d0:" + V().key, $("d0").value);
+  S.vstate[V().key] = {d0: $("d0").value, d1: $("d1").value, tab: S.tab};
+  updateRangeBtn();
+  if (needsReload()) load(false); else render();
+}
+function setupCalendar() {
+  const btn = $("rangeBtn"), panel = $("calPanel");
+  btn.addEventListener("click", () => {
+    if (!panel.hidden) return closeCal();
+    const e = new Date($("d1").value + "T00:00:00Z");
+    S.cal = {view: addMonths([e.getUTCFullYear(), e.getUTCMonth()], -1), a: null};
+    panel.hidden = false; btn.setAttribute("aria-expanded", "true"); renderCal();
+  });
+  document.addEventListener("mousedown", e => { if (!panel.hidden && !panel.contains(e.target) && e.target !== btn) closeCal(); });
+  document.addEventListener("keydown", e => { if (e.key === "Escape" && !panel.hidden) { closeCal(); btn.focus(); } });
+}
+function closeCal() { $("calPanel").hidden = true; $("rangeBtn").setAttribute("aria-expanded", "false"); S.cal = null; }
+function monthGrid(y, m) {
+  const t = todayISO(), lo = minStart();
+  const d0 = S.cal.a || $("d0").value, d1 = S.cal.a ? null : $("d1").value;
+  const first = new Date(Date.UTC(y, m, 1)), lead = (first.getUTCDay() + 6) % 7, days = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+  let h = `<div class="calm"><h4>${MONTHS[m]} ${y}</h4><div class="calgrid">` + ["Mo","Tu","We","Th","Fr","Sa","Su"].map(x => `<div class="dow">${x}</div>`).join("") + "<div></div>".repeat(lead);
+  for (let d = 1; d <= days; d++) {
+    const ds = `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    const cls = ["day"];
+    if (ds === d0) cls.push("s");
+    if (d1 && ds === d1) cls.push("e");
+    if (d1 && ds > d0 && ds < d1) cls.push("inr");
+    if (ds === t) cls.push("today");
+    const sub = subsMap().get(ds);
+    if (sub) cls.push("sub");
+    const title = sub ? `${V().leadFull} updated the forecast: ` + sub.map(s => `${s.period}${s.fc ? " (forecast " + s.fc + ")" : ""}`).join("; ") : "";
+    h += `<button type="button" class="${cls.join(" ")}" data-d="${ds}" ${ds > t || ds < lo ? "disabled" : ""} ${title ? `title="${esc(title)}"` : ""} aria-label="${dmy(ds)}${sub ? `, ${V().leadFull} forecast update` : ""}">${d}</button>`;
+  }
+  return h + "</div></div>";
+}
+function renderCal() {
+  const p = $("calPanel"), v = S.cal.view, v2 = addMonths(v, 1), t = todayISO();
+  const lastAllowed = [Number(t.slice(0, 4)), Number(t.slice(5, 7)) - 1], lo = minStart(), firstAllowed = [Number(lo.slice(0, 4)), Number(lo.slice(5, 7)) - 1];
+  const cmp = (a, b) => a[0] - b[0] || a[1] - b[1];
+  const subNote = S.subsState === "ok" ? `<span class="calkey"><i></i> ${esc(V().leadFull)} submitted a forecast (hover for details)</span>` : S.subsState === "loading" ? `<span class="calkey">Loading ${esc(V().leadFull)}'s forecast days from Slack…</span>` : `<span class="calkey">${esc(S.subsMsg || "Couldn't read #forecast-update in Slack.")}</span>`;
+  p.innerHTML = `<div class="calhead"><button type="button" class="calnav" data-nav="-1" aria-label="Previous month" ${cmp(v, firstAllowed) <= 0 ? "disabled" : ""}>‹</button><span class="hint">${S.cal.a ? "Now pick the end date" : "Pick the start date, then the end date"}</span><button type="button" class="calnav" data-nav="1" aria-label="Next month" ${cmp(v2, lastAllowed) >= 0 ? "disabled" : ""}>›</button></div>` +
+    `<div class="calmonths">${monthGrid(v[0], v[1])}${monthGrid(v2[0], v2[1])}</div>` +
+    `<div class="calfoot"><div class="presets"><button type="button" data-pre="qstart">Quarter start → today</button><button type="button" data-pre="7">Last 7 days</button><button type="button" data-pre="30">Last 30 days</button><button type="button" data-pre="lastsub">Since ${esc(V().lead)}'s last update</button></div>${subNote}</div>`;
+  p.querySelectorAll("[data-nav]").forEach(b => b.addEventListener("click", () => { S.cal.view = addMonths(S.cal.view, Number(b.dataset.nav)); renderCal(); }));
+  p.querySelectorAll(".day:not(:disabled)").forEach(b => b.addEventListener("click", () => {
+    const d = b.dataset.d;
+    if (!S.cal.a) { S.cal.a = d; renderCal(); return; }
+    let a = S.cal.a, z = d; if (z < a) [a, z] = [z, a];
+    if (a === z) { S.cal.a = d; renderCal(); return; }
+    $("d0").value = a; $("d1").value = z; closeCal(); onDatesChanged();
+  }));
+  p.querySelectorAll("[data-pre]").forEach(b => {
+    const k = b.dataset.pre;
+    if (k === "lastsub") { const last = [...subsMap().keys()].filter(x => x < t).sort().pop(); if (!last) { b.disabled = true; return; } b.title = dmy(last); }
+    b.addEventListener("click", () => {
+      let v0 = k === "qstart" ? qStart(t) : k === "lastsub" ? [...subsMap().keys()].filter(x => x < t).sort().pop() : iso(new Date(Date.parse(t + "T00:00:00Z") - Number(k) * DAY));
+      if (v0 < minStart()) v0 = minStart();
+      $("d0").value = v0; $("d1").value = t; closeCal(); onDatesChanged();
+    });
+  });
+}
+
+/* ---------- the leads' forecast submissions (Slack #forecast-update) ---------- */
+const SLACK_SERVER = "Slack", SLACK_CHANNEL = "C0A3FRE4XV1";
+function parseSlack(text) {
+  const out = [];
+  String(text).split(/\n\n(?=:\s)/).forEach(m => {
+    const u = m.match(/\*User:\*\s*([^\n]+)/), ts = m.match(/\[(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})(?::\d{2})?[^\]]*\]/);
+    if (!u || !ts || !VIEWS.some(v => v.slack.test(u[1]))) return;
+    const per = m.match(/\*Period:\*\s*([^\n]+)/), fcm = m.match(/\*Forecast:\*\s*([^\n\[]+)/);
+    // posts are stamped in Israel time, e.g. "[2026-10-06 19:01:34 IDT]"
+    const tz = m.match(/\[\d{4}-\d{2}-\d{2} (\d{2}:\d{2})(?::(\d{2}))?\s*([A-Z]{2,5})?\]/), off = tz && {IDT: 3, IST: 2, UTC: 0, GMT: 0}[tz[3]];
+    const ms = tz && off != null ? Date.parse(`${ts[1]}T${tz[1]}:${tz[2] || "00"}Z`) - off * 3600000 : null;
+    out.push({user: u[1].trim(), date: ts[1], time: ts[2], ms, period: per ? per[1].trim() : "", fc: fcm ? fcm[1].replace(/_\(unchanged\)_/, "unchanged").trim() : ""});
+  });
+  return out;
+}
+// The open view's lead's posts by day (calendar dots): Map(date -> [{period, fc, ...}])
+function subsMap() {
+  const k = V().key; S.subsMemo = S.subsMemo || {};
+  if (S.subsMemo[k]) return S.subsMemo[k];
+  const m = new Map();
+  S.subList.filter(s => V().slack.test(s.user)).forEach(s => { if (!m.has(s.date)) m.set(s.date, []); const l = m.get(s.date); if (!l.some(x => x.period === s.period && x.fc === s.fc)) l.push(s); });
+  return S.subsMemo[k] = m;
+}
+async function loadSubmissions() {
+  S.subsState = "loading";
+  try {
+    const oldest = String(Math.floor(Date.parse(minStart() + "T00:00:00Z") / 1000));
+    let cursor = null, n = 0;
+    const all = [];
+    do {
+      const input = {channel_id: SLACK_CHANNEL, limit: 100, oldest, response_format: "concise"};
+      if (cursor) input.cursor = cursor;
+      const res = await S.mcp.callTool(SLACK_SERVER, "slack_read_channel", input, {cache: CACHE});
+      let p = res.payload;
+      if (typeof p === "string") { try { p = JSON.parse(p); } catch (e) { p = {messages: p}; } }
+      p = p || {};
+      all.push(...parseSlack(p.messages || ""));
+      const m = String(p.pagination_info || "").match(/cursor:\s*`([^`]+)`/);
+      cursor = m ? m[1] : null;
+    } while (cursor && ++n < 30);
+    S.subList = all; S.subsMemo = {};
+    S.subsState = "ok";
+  } catch (e) {
+    S.subsState = "err";
+    S.subsMsg = e && (e.code === "server_not_connected" || e.code === "needs_reauth") ? "Connect Slack in claude.ai Settings → Connectors to see the leads' forecast days."
+      : e && e.code === "not_in_manifest" ? "Slack access is off for this page, so the leads' forecast days aren't shown."
+      : e && e.code === "tool_error" ? "Couldn't read #forecast-update. You may need to be a member of that channel."
+      : "Couldn't read #forecast-update in Slack right now.";
+  }
+  if (S.cal) renderCal();
+  // the last forecast may be older than the history loaded so far
+  if (S.loaded && !S.loading) { if (needsReload()) load(false); else render(); }
+}
+
+/* ---------- init ---------- */
+function minStart() { const d = new Date(); d.setUTCMonth(d.getUTCMonth() - 18); return iso(d); }
+function init() {
+  const ps = $("period");
+  ps.innerHTML = PERIODS.map(p => `<option value="${p.id}">${p.label}</option>`).join("");
+  ps.value = periodById(store.get("period", "Q4-2026")).id;
+  const t = todayISO();
+  S.view = VIEWS.some(v => v.key === store.get("view", "co")) ? store.get("view", "co") : "co";
+  $("d0").value = store.get("d0:" + S.view, store.get("d0", "2026-08-01"));
+  $("d1").value = t;
+  if ($("d0").value < minStart()) $("d0").value = minStart();
+  $("thr").value = store.get("thr", 3);
+  const sel = store.get("products", null); S.sel = sel ? new Set(sel) : null;
+  setupCalendar();
+  renderViewBar();
+  setTab(store.get("tab:" + S.view, store.get("tab", "fc")));
+  document.querySelectorAll(".tabs button").forEach(b => b.addEventListener("click", () => { setTab(b.dataset.tab); S.sel_step = null; render(); }));
+  ps.addEventListener("change", () => { store.set("period", ps.value); setStatus("stale", "Press Update to load this period."); });
+  $("apply").addEventListener("click", () => { if (needsReload()) load(false); else render(); });
+  updateRangeBtn();
+  $("thr").addEventListener("change", () => { store.set("thr", Number($("thr").value)); render(); });
+  const btn = $("prodBtn"), panel = $("prodPanel");
+  btn.addEventListener("click", () => { panel.hidden = !panel.hidden; btn.setAttribute("aria-expanded", String(!panel.hidden)); });
+  document.addEventListener("click", e => { if (!panel.hidden && !panel.contains(e.target) && e.target !== btn) { panel.hidden = true; btn.setAttribute("aria-expanded", "false"); } });
+  document.addEventListener("keydown", e => { if (e.key === "Escape" && !panel.hidden) { panel.hidden = true; btn.focus(); } });
+  updateProdBtn();
+  setStatus("stale", "Connecting to Salesforce…");
+  const cl = window.claude && window.claude.use ? window.claude.use("mcp") : Promise.resolve(null);
+  cl.then(m => {
+    if (!m) { $("banner").innerHTML = `<div class="banner info">This dashboard loads live Salesforce data through your "${esc(SF_SERVER)}" connector. Open it in claude.ai, signed in with Salesforce connected, to see the numbers.</div>`; setStatus("err", "Not connected"); return; }
+    S.mcp = m; load(false); loadSubmissions();
+    window.claude.use("downloads").then(d => { if (d) { S.dl = d; render(); } }).catch(() => {});
+  }).catch(() => { setStatus("err", "Not connected"); });
+}
+init();
+
+</script>
+</body></html>

@@ -1,0 +1,6 @@
+# local scratch and secrets
+*.token
+.razieli-token
+.env
+Thumbs.db
+.DS_Store
