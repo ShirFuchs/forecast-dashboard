@@ -23,6 +23,15 @@ Both views have a waterfall between the two compare dates, a "What changed" deal
 Judgment amounts and notes come from Razieli and are a fixed copy in `index.html` (`JUDGMENT`,
 dated by `JUDGMENT_AS_OF`); update them when a lead resubmits.
 
+## Viewers without connectors (shared copy)
+
+The owner or an editor, with the connectors, clicks **Refresh shared data**. That saves the selected
+quarter's data (the last ~92 days of history, all four leads' Snowflake snapshots and the Slack
+submission times) into the artifact's database (`shared/<period>`, gzipped, in parts). Viewers
+without the Salesforce connector automatically see that copy, labelled with when it was refreshed;
+viewers without only Snowflake take its snapshots. **Preview viewer copy** shows exactly what they see.
+Only the owner and editors can write the copy (db rule `shared`: read view, write admin).
+
 ## Known data issues
 
 - Three Snowflake snapshots from 22–28 Sep 2026 have every row inflated (a one-time pipeline bug).
