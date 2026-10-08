@@ -334,7 +334,7 @@ const periodById = id => PERIODS.find(p => p.id === id) || PERIODS.find(p => p.i
 const S = {
   mcp: null, loading: false, loaded: null, // loaded = {period, d0}
   opps: [], products: [], sel: null, // sel: Set of selected products, null = all
-  storedAt: null, fresh: true, sel_step: null, err: null, snapSel: {pipe: null, fc: null}, oppMap: new Map(), view: "co", vstate: {}, subs: new Map(), subList: [], subsState: "loading", cal: null, tab: "pipe"
+  storedAt: null, fresh: true, sel_step: null, err: null, snapSel: {pipe: null, fc: null}, oppMap: new Map(), view: "co", vstate: {}, mode: "live", sharedMeta: {}, db: null, canWrite: false, subs: new Map(), subList: [], subsState: "loading", cal: null, tab: "pipe"
 };
 
 /* ---------- Salesforce access ---------- */
@@ -725,7 +725,6 @@ const fmtWhen = t => new Date(t).toLocaleString("en-GB", {day: "numeric", month:
 // leads' in separate tables). The view's lead's submissions are read from there; a submission the table doesn't have falls
 // back to the rebuild from Salesforce history.
 const SNOW_SERVER = "Snowflake";
-const snapRegionSql = () => V().regions ? ` AND REGION IN (${V().regions.map(r => `'${r.replace(/'/g, "")}'`).join(",")})` : "";
 const SNAP = {lists: {}, data: {}, busy: new Set(), err: null, stubs: new Map()};
 async function snow(sql) {
   const res = await S.mcp.callTool(SNOW_SERVER, "sql_exec", {sql}, {cache: CACHE});
@@ -738,9 +737,10 @@ async function snow(sql) {
 }
 const safeId = v => /^[A-Za-z0-9_-]+$/.test(String(v)) ? String(v) : "";
 function snapFetch(key, sql, store, shape) {
-  if (store[key] || SNAP.busy.has(key) || !S.mcp) return;
+  if (store[key] || SNAP.busy.has(key) || !S.mcp || S.mode === "shared") return;
   SNAP.busy.add(key);
-  snow(sql).then(rows => { store[key] = shape(rows); }).catch(e => { SNAP.err = e; store[key] = shape([]); })
+  // a viewer without Snowflake falls back to the snapshots in the shared copy, when there is one
+  snow(sql).then(rows => { store[key] = shape(rows); }).catch(e => { SNAP.err = e; store[key] = shape([]); useSharedSnaps(); })
     .finally(() => { SNAP.busy.delete(key); if (S.loaded && !S.loading) { if (needsReload()) load(false); else render(); } });
 }
 // The lead's submissions for the period's quarter: [{id, t, bad}]. A few saved snapshots repeat every row many times over
@@ -748,18 +748,21 @@ function snapFetch(key, sql, store, shape) {
 // marked bad and that submission is rebuilt from Salesforce history instead.
 const SNAP_ROW_LIMIT = 50e6;
 const listKey = period => V().key + "|" + period.id;
+const dataKey = (v, snapId, period) => v.key + "|" + snapId + "|" + period.p1;
+const regionSql = v => v.regions ? ` AND REGION IN (${v.regions.map(r => `'${r.replace(/'/g, "")}'`).join(",")})` : "";
+const listSql = (v, period) => { const [q, y] = period.id.split("-"); return `SELECT SUBMISSION_ID, TO_VARCHAR(MAX(SUBMITTED_AT), 'YYYY-MM-DD"T"HH24:MI:SS.FF3'), MAX(IFF(ARR_END_DATE_C = '${period.p1}', ARR_DOLLAR_C, NULL)) FROM ${v.snap.table} WHERE SUBMITTED_BY_USER_ID = '${safeId(v.snap.user)}' AND FISCAL_QUARTER = '${safeId(q)}' AND FISCAL_YEAR = ${Number(y)} GROUP BY 1`; };
+const shapeList = rows => rows.map(r => ({id: r[0], t: Date.parse(r[1] + "Z"), bad: Number(r[2]) > SNAP_ROW_LIMIT})).filter(s => s.id && isFinite(s.t)).sort((a, b) => a.t - b.t);
+const dataSql = (v, snapId, period) => `SELECT OPPORTUNITY_C, OPPORTUNITY_NAME, OPPORTUNITY_STAGE, ${v.snap.col}, REGION, BIZDEV_OWNER, PRODUCT_NAME, ARR_DOLLAR_C FROM ${v.snap.table} WHERE SUBMISSION_ID = '${safeId(snapId)}' AND ARR_END_DATE_C = '${period.p1}' AND ARR_DOLLAR_C <> 0${regionSql(v)}`;
+const shapeData = rows => { const m = new Map(); rows.forEach(r => { let d = m.get(r[0]); if (!d) m.set(r[0], d = {id: r[0], name: r[1], st: r[2], vp: r[3], region: r[4], owner: r[5], vals: {}}); const p = r[6] || "Unknown product"; d.vals[p] = (d.vals[p] || 0) + (Number(r[7]) || 0); }); return m; };
 function requestSnapList(period) {
-  const [q, y] = period.id.split("-"), sn = V().snap;
-  snapFetch(listKey(period), `SELECT SUBMISSION_ID, TO_VARCHAR(MAX(SUBMITTED_AT), 'YYYY-MM-DD"T"HH24:MI:SS.FF3'), MAX(IFF(ARR_END_DATE_C = '${period.p1}', ARR_DOLLAR_C, NULL)) FROM ${sn.table} WHERE SUBMITTED_BY_USER_ID = '${safeId(sn.user)}' AND FISCAL_QUARTER = '${safeId(q)}' AND FISCAL_YEAR = ${Number(y)} GROUP BY 1`,
-    SNAP.lists, rows => rows.map(r => ({id: r[0], t: Date.parse(r[1] + "Z"), bad: Number(r[2]) > SNAP_ROW_LIMIT})).filter(s => s.id && isFinite(s.t)).sort((a, b) => a.t - b.t));
+  snapFetch(listKey(period), listSql(V(), period), SNAP.lists, shapeList);
 }
 // One submission's deals at the quarter end, in the view's regions: Map(opportunity id -> {id, name, st, vp, region, owner, vals});
 // vp holds the lead's own forecast column (VP or region lead)
 function snapData(snap, period) {
-  const key = V().key + "|" + snap.id + "|" + period.p1, sn = V().snap;
+  const key = dataKey(V(), snap.id, period);
   if (SNAP.data[key]) return SNAP.data[key];
-  snapFetch(key, `SELECT OPPORTUNITY_C, OPPORTUNITY_NAME, OPPORTUNITY_STAGE, ${sn.col}, REGION, BIZDEV_OWNER, PRODUCT_NAME, ARR_DOLLAR_C FROM ${sn.table} WHERE SUBMISSION_ID = '${safeId(snap.id)}' AND ARR_END_DATE_C = '${period.p1}' AND ARR_DOLLAR_C <> 0${snapRegionSql()}`,
-    SNAP.data, rows => { const m = new Map(); rows.forEach(r => { let d = m.get(r[0]); if (!d) m.set(r[0], d = {id: r[0], name: r[1], st: r[2], vp: r[3], region: r[4], owner: r[5], vals: {}}); const p = r[6] || "Unknown product"; d.vals[p] = (d.vals[p] || 0) + (Number(r[7]) || 0); }); return m; });
+  snapFetch(key, dataSql(V(), snap.id, period), SNAP.data, shapeData);
   return null;
 }
 // The forecast in effect at `upTo`: {t, snap} where snap is the saved submission, or null when only the time is known (rebuilt)
@@ -1066,10 +1069,163 @@ function render() {
   if (ctx.mode === "pipe") { renderProdTable(d0, d1); renderAll(d1); }
 }
 
+/* ---------- shared copy, for viewers without the connectors ---------- */
+// "Refresh shared data" (owner and editors, with connectors) saves everything this page loads for the selected quarter
+// (deals with field and booking history, every lead's Snowflake snapshots, the #forecast-update posts) into the artifact's
+// database, gzipped and split across documents: shared/<period> points at the current copy, shared/<period>/<run>/<n> hold
+// its parts. A new copy is written under a fresh run id before the pointer moves, so readers never mix two copies.
+// Viewers whose Salesforce connector is missing read that copy instead; viewers missing only Snowflake take its snapshots.
+const SHARED_VER = 1, SHARED_DAYS = 92, SHARED_PART = 100000;
+// store writes retry transient refusals (`unavailable`, `resource_exhausted`) a few times with a growing, jittered pause
+async function dbWrite(fn) {
+  for (let i = 0; ; i++) {
+    try { return await fn(); } catch (e) {
+      if (i >= 4 || !(e && (e.code === "unavailable" || e.code === "resource_exhausted"))) throw e;
+      await new Promise(r => setTimeout(r, 1000 * 2 ** i + Math.random() * 1000));
+    }
+  }
+}
+const toB64 = buf => { const u = new Uint8Array(buf); let s = ""; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); };
+const fromB64 = s => { const b = atob(s), u = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return u; };
+const gzipB64 = async str => toB64(await new Response(new Blob([str]).stream().pipeThrough(new CompressionStream("gzip"))).arrayBuffer());
+const gunzipB64 = async s => new Response(new Blob([fromB64(s)]).stream().pipeThrough(new DecompressionStream("gzip"))).text();
+const fmtStamp = t => new Date(t).toLocaleString("en-GB", {day: "numeric", month: "short", hour: "2-digit", minute: "2-digit"});
+
+function packOpps(opps) {
+  const bks = [], idx = new Map();
+  const os = opps.map(o => ({id: o.id, name: o.name, type: o.type, stage: o.stage, vp: o.vp, rl: o.rl, region: o.region, owner: o.owner,
+    created: isFinite(o.created) ? o.created : null, mad: o.mad, amt: o.amt, hist: o.hist, arr: o.arr, li: o.li, hasRow: o.hasRow,
+    bk: (o.bk || []).map(b => { if (!idx.has(b)) { idx.set(b, bks.length); bks.push(b); } return idx.get(b); })}));
+  return {os, bks};
+}
+function unpackOpps(p) {
+  return p.os.map(o => ({...o, created: o.created == null ? NaN : o.created, bk: o.bk.length ? o.bk.map(i => p.bks[i]) : null}));
+}
+// every lead's snapshot list and (non-corrupted) snapshot rows for the period, as plain JSON
+async function fetchAllSnaps(period) {
+  const out = {};
+  for (const v of VIEWS) {
+    const list = shapeList(await snow(listSql(v, period))), data = {};
+    for (const s of list) if (!s.bad) data[s.id] = [...shapeData(await snow(dataSql(v, s.id, period))).values()].map(d => [d.id, d.name, d.st, d.vp, d.region, d.owner, d.vals]);
+    out[v.key] = {list, data};
+  }
+  return out;
+}
+function hydrateSnaps(snaps, period) {
+  for (const v of VIEWS) {
+    const x = snaps && snaps[v.key];
+    if (!x) continue;
+    SNAP.lists[v.key + "|" + period.id] = x.list;
+    for (const id in x.data) SNAP.data[dataKey(v, id, period)] = new Map(x.data[id].map(r => [r[0], {id: r[0], name: r[1], st: r[2], vp: r[3], region: r[4], owner: r[5], vals: r[6]}]));
+  }
+}
+async function readShared(period) {
+  if (!S.db) return null;
+  const meta = await S.db.doc(`shared/${period.id}`).get();
+  if (!meta.exists) return null;
+  const m = meta.data();
+  if (m.ver !== SHARED_VER) return null;
+  const parts = [];
+  for (let i = 0; i < m.n; i++) parts.push(await dbWrite(() => S.db.doc(`shared/${period.id}/${m.run}/${i}`).get()));
+  if (parts.some(p => !p.exists)) throw {code: "tool_error", message: "The shared copy is being replaced. Try again in a minute."};
+  return JSON.parse(await gunzipB64(parts.map(p => p.data().s).join("")));
+}
+async function readSharedMeta(period) {
+  if (!S.db) return;
+  try { const m = await S.db.doc(`shared/${period.id}`).get(); S.sharedMeta[period.id] = m.exists ? m.data() : null; } catch (e) {}
+  setStatus(S.statusKind || "ok", S.statusText || "");
+}
+// Viewers without Salesforce: the whole page runs on the shared copy
+async function loadShared() {
+  const period = periodById($("period").value);
+  S.mode = "shared"; S.loading = true; $("banner").innerHTML = "";
+  document.body.setAttribute("data-loading", "");
+  setStatus("stale", `Loading the shared copy of ${period.short}…`);
+  try {
+    const b = await readShared(period);
+    S.loading = false;
+    if (!b) {
+      S.loaded = null; S.opps = []; S.oppMap = new Map();
+      $("banner").innerHTML = `<div class="banner info">You're seeing the dashboard without the Salesforce connector, so it shows the shared copy that the dashboard owner refreshes. There's no shared copy of ${esc(period.short)} yet: ask the owner to open the dashboard and click "Refresh shared data".</div>`;
+      setStatus("err", "No shared copy for this period");
+      return;
+    }
+    S.opps = unpackOpps(b.opps); S.oppMap = new Map(S.opps.map(o => [o.id, o]));
+    S.shared = {at: b.at, from: b.from, period: b.period};
+    S.loaded = {period: period.id, d0: b.from};
+    S.subList = b.subs || []; S.subsMemo = {}; S.subsState = "ok";
+    hydrateSnaps(b.snaps, period);
+    if ($("d0").value < b.from) { $("d0").value = b.from; updateRangeBtn(); }
+    const ps = new Set(); S.opps.forEach(o => Object.keys(o.arr || o.li || {}).forEach(p => ps.add(p)));
+    S.products = [...ps].sort();
+    if (S.sel) S.sel = new Set([...S.sel].filter(p => ps.has(p)));
+    renderProductPicker(); render();
+    setStatus("ok", `Shared copy · refreshed ${fmtStamp(b.at)} · dates from ${dmy(b.from)}`);
+  } catch (e) {
+    S.loading = false;
+    $("banner").innerHTML = `<div class="banner">${esc(e && e.message ? "Couldn't read the shared copy: " + e.message : "Couldn't read the shared copy.")}</div>`;
+    setStatus("err", "No data loaded");
+  } finally { document.body.removeAttribute("data-loading"); }
+}
+// Viewers with Salesforce but without Snowflake: take the exact snapshots from the shared copy
+let sharedSnapsTried = {};
+async function useSharedSnaps() {
+  const period = periodById($("period").value);
+  if (sharedSnapsTried[period.id] || !S.db) return;
+  sharedSnapsTried[period.id] = true;
+  try {
+    const b = await readShared(period);
+    if (b && b.snaps) { hydrateSnaps(b.snaps, period); SNAP.err = null; SNAP.fromShared = b.at; if (S.loaded && !S.loading) render(); }
+  } catch (e) {}
+}
+// Owner / editors with connectors: save the shared copy
+async function refreshShared() {
+  if (S.refreshingShared || !S.db || !S.mcp || S.mode === "shared") return;
+  const period = periodById($("period").value);
+  let from = iso(new Date(Date.now() - SHARED_DAYS * DAY));
+  if (from < minStart()) from = minStart();
+  S.refreshingShared = true; S.sharedErr = null; setStatus(S.statusKind || "ok", S.statusText || "");
+  try {
+    // history must reach back over the whole window; reuse what's loaded when it already does
+    if (!(S.loaded && S.loaded.period === period.id && S.loaded.d0 <= from)) {
+      const opps = await loadData(period, from);
+      S.opps = opps; S.oppMap = new Map(opps.map(o => [o.id, o])); S.loaded = {period: period.id, d0: from};
+    }
+    if (S.subsState !== "ok") await loadSubmissions();
+    const subs = S.subList.filter(s => !s.ms || s.ms >= Date.parse(from + "T00:00:00Z") - 45 * DAY);
+    const snaps = await fetchAllSnaps(period);
+    const at = Date.now();
+    const z = await gzipB64(JSON.stringify({ver: SHARED_VER, period: period.id, at, from, opps: packOpps(S.opps), snaps, subs}));
+    const run = "r" + at.toString(36), parts = [];
+    for (let i = 0; i < z.length; i += SHARED_PART) parts.push(z.slice(i, i + SHARED_PART));
+    for (let i = 0; i < parts.length; i++) await dbWrite(() => S.db.doc(`shared/${period.id}/${run}/${i}`).set({s: parts[i]}));
+    const ref = S.db.doc(`shared/${period.id}`), prev = await dbWrite(() => ref.get());
+    const meta = {ver: SHARED_VER, run, n: parts.length, at, from, bytes: z.length};
+    await dbWrite(() => ref.set(meta));
+    S.sharedMeta[period.id] = meta;
+    // remove the copy this one replaced
+    if (prev.exists) { const p = prev.data(); if (p.run && p.run !== run) for (let i = 0; i < (p.n || 0); i++) await S.db.doc(`shared/${period.id}/${p.run}/${i}`).delete().catch(() => {}); }
+  } catch (e) {
+    S.sharedErr = e && e.code === "quota_exceeded" ? "The dashboard's storage is full." : e && e.code === "invalid_argument" ? "You don't have permission to save the shared copy." : "Couldn't save the shared copy" + (e && e.message ? ": " + e.message : ".");
+  } finally {
+    S.refreshingShared = false; render(); setStatus(S.statusKind || "ok", S.statusText || "");
+  }
+}
+
 /* ---------- status & errors ---------- */
 function setStatus(kind, text) {
-  $("status").innerHTML = `<span><span class="dot${kind === "ok" ? "" : " " + kind}"></span>${esc(text)}</span>` + (S.loaded && !S.loading ? ` <button type="button" class="btn" id="refresh">Refresh from Salesforce</button>` : "") + (S.loading ? `<div class="progress" style="flex-basis:100%"><div id="prog"></div></div>` : "");
+  S.statusKind = kind; S.statusText = text;
+  const pm = S.sharedMeta[periodById($("period").value).id];
+  const share = S.mode !== "shared" && S.db && S.canWrite && S.loaded && !S.loading
+    ? ` <button type="button" class="btn" id="shareRefresh" ${S.refreshingShared ? "disabled" : ""}>${S.refreshingShared ? "Saving shared copy…" : "Refresh shared data"}</button><span class="muted">${S.sharedErr ? esc(S.sharedErr) : pm ? `Shared copy refreshed ${esc(fmtStamp(pm.at))}` : pm === null ? "No shared copy yet" : ""}</span>` : "";
+  // owner and editors can preview exactly what a viewer without connectors sees, and come back
+  const preview = S.mcp && S.db && S.canWrite && !S.loading && !S.refreshingShared
+    ? (S.mode === "shared" ? ` <button type="button" class="btn" id="previewOff">Back to live data</button>` : pm ? ` <button type="button" class="btn" id="previewOn">Preview viewer copy</button>` : "") : "";
+  $("status").innerHTML = `<span><span class="dot${kind === "ok" ? "" : " " + kind}"></span>${esc(text)}</span>` + (S.loaded && !S.loading && S.mode !== "shared" ? ` <button type="button" class="btn" id="refresh">Refresh from Salesforce</button>` : "") + share + preview + (S.loading ? `<div class="progress" style="flex-basis:100%"><div id="prog"></div></div>` : "");
   const r = $("refresh"); if (r) r.addEventListener("click", () => load(true));
+  const sr = $("shareRefresh"); if (sr) sr.addEventListener("click", refreshShared);
+  const pOn = $("previewOn"); if (pOn) pOn.addEventListener("click", () => { SNAP.lists = {}; SNAP.data = {}; S.loaded = null; loadShared(); });
+  const pOff = $("previewOff"); if (pOff) pOff.addEventListener("click", () => { SNAP.lists = {}; SNAP.data = {}; SNAP.err = null; S.mode = "live"; S.shared = null; S.loaded = null; $("banner").innerHTML = ""; load(false); });
 }
 function errorBanner(e) {
   const code = e && e.code;
@@ -1089,8 +1245,11 @@ function errorBanner(e) {
 }
 
 /* ---------- load ---------- */
+// a viewer whose Salesforce connector is missing or switched off reads the shared copy instead
+const NO_SF = ["server_not_connected", "needs_reauth", "not_in_manifest", "not_granted", "capability_disabled", "blocked_by_policy", "approval_required"];
 async function load(refresh) {
   if (S.loading) return;
+  if (S.mode === "shared") return loadShared();
   const period = periodById($("period").value), d0 = loadFrom();
   if (!S.mcp) return;
   S.loading = true; refreshing = !!refresh; $("banner").innerHTML = "";
@@ -1110,8 +1269,10 @@ async function load(refresh) {
     if (needsReload()) { setTimeout(() => load(false), 0); }
     const at = S.storedAt ? new Date(S.storedAt) : new Date();
     setStatus("ok", `Live from Salesforce · loaded ${at.toLocaleString("en-GB", {day: "numeric", month: "short", hour: "2-digit", minute: "2-digit"})} · ${S.opps.length} opportunities checked`);
+    readSharedMeta(period);
   } catch (e) {
     S.loading = false;
+    if (!S.loaded && S.db && NO_SF.includes(e && e.code)) { refreshing = false; $("apply").disabled = false; document.body.removeAttribute("data-loading"); return loadShared(); }
     errorBanner(e);
     setStatus("err", S.loaded ? "Showing the last data that loaded" : "No data loaded");
   } finally {
@@ -1120,6 +1281,7 @@ async function load(refresh) {
 }
 function needsReload() {
   if (!S.loaded) return true;
+  if (S.mode === "shared") return S.loaded.period !== periodById($("period").value).id;
   return S.loaded.period !== periodById($("period").value).id || loadFrom() < S.loaded.d0;
 }
 // History must reach back to the start date and to the last forecast, whichever is earlier
@@ -1256,7 +1418,8 @@ async function loadSubmissions() {
 }
 
 /* ---------- init ---------- */
-function minStart() { const d = new Date(); d.setUTCMonth(d.getUTCMonth() - 18); return iso(d); }
+// earliest pickable date: 18 months of field history live, or the start of the shared copy's window
+function minStart() { if (S.mode === "shared" && S.shared) return S.shared.from; const d = new Date(); d.setUTCMonth(d.getUTCMonth() - 18); return iso(d); }
 function init() {
   const ps = $("period");
   ps.innerHTML = PERIODS.map(p => `<option value="${p.id}">${p.label}</option>`).join("");
@@ -1282,11 +1445,16 @@ function init() {
   document.addEventListener("keydown", e => { if (e.key === "Escape" && !panel.hidden) { panel.hidden = true; btn.focus(); } });
   updateProdBtn();
   setStatus("stale", "Connecting to Salesforce…");
-  const cl = window.claude && window.claude.use ? window.claude.use("mcp") : Promise.resolve(null);
-  cl.then(m => {
-    if (!m) { $("banner").innerHTML = `<div class="banner info">This dashboard loads live Salesforce data through your "${esc(SF_SERVER)}" connector. Open it in claude.ai, signed in with Salesforce connected, to see the numbers.</div>`; setStatus("err", "Not connected"); return; }
+  const use = name => window.claude && window.claude.use ? window.claude.use(name).catch(() => null) : Promise.resolve(null);
+  Promise.all([use("mcp"), use("db"), use("user")]).then(async ([m, db, user]) => {
+    S.db = db;
+    try { S.canWrite = !!(user && (user.isOwner() || user.canEdit())); } catch (e) { S.canWrite = false; }
+    use("downloads").then(d => { if (d) { S.dl = d; render(); } });
+    if (!m) {
+      if (db) return loadShared();
+      $("banner").innerHTML = `<div class="banner info">This dashboard loads live Salesforce data through your "${esc(SF_SERVER)}" connector. Open it in claude.ai, signed in with Salesforce connected, to see the numbers.</div>`; setStatus("err", "Not connected"); return;
+    }
     S.mcp = m; load(false); loadSubmissions();
-    window.claude.use("downloads").then(d => { if (d) { S.dl = d; render(); } }).catch(() => {});
   }).catch(() => { setStatus("err", "Not connected"); });
 }
 init();
