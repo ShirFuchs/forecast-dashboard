@@ -12,6 +12,13 @@ It shows WSC's forecast for the company (Shaka, VP forecast) and for each region
 
 Both views have a waterfall between the two compare dates, a "What changed" deal list and CSV export.
 
+A third tab, **Forecast accuracy**, compares every lead's Forecast at each Razieli submission (the number
+they enter, not best case) with the ARR the quarter closed at: a table per quarter (last forecast, average
+weekly miss, bias), a timeline chart per lead, a cross-quarter table and a CSV of every submission.
+It reads a copy of Razieli's `get_judgment_history` plus each quarter's closed ARR from
+`get_forecast_rollup`, embedded in `index.html` (`ACCURACY`, dated by `ACC_AS_OF`), so it needs no connector.
+Razieli's history starts on 2 Jun 2026.
+
 ## Data sources (read through the viewer's own claude.ai connectors)
 
 | Connector | Used for |
@@ -21,7 +28,8 @@ Both views have a waterfall between the two compare dates, a "What changed" deal
 | Slack (`slack_read_channel`) | #forecast-update posts: submission times and calendar dots |
 
 Judgment amounts and notes come from Razieli and are a fixed copy in `index.html` (`JUDGMENT`,
-dated by `JUDGMENT_AS_OF`); update them when a lead resubmits.
+dated by `JUDGMENT_AS_OF`); update them when a lead resubmits. The same goes for the accuracy history
+(`ACCURACY`, `ACC_AS_OF`).
 
 ## Viewers without connectors (shared copy)
 

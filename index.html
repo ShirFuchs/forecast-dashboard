@@ -130,6 +130,16 @@ footer p{margin:0 0 8px}
 .tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--ink)}
 .tabs button:focus-visible{outline:2px solid var(--commit);outline-offset:2px}
 .tabs .when{font-weight:400;font-size:13px;color:var(--muted);margin-left:6px}
+body[data-tab="acc"] #controls,body[data-tab="acc"] section.bridge,body[data-tab="acc"] #movesSec{display:none}
+.acchead{display:flex;justify-content:space-between;align-items:flex-start;gap:12px 20px;flex-wrap:wrap}
+.acccard .ax{font-size:10.5px;fill:var(--muted)}.acccard .lab{font-size:11.5px;font-weight:650}
+.accgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,460px),1fr));gap:18px}
+.acccard{border:1px solid var(--line);border-radius:10px;padding:14px 14px 8px}
+.acccard.cur{border-color:var(--commit);box-shadow:0 0 0 1px var(--commit) inset}
+.acccard h3{margin:0 0 2px;font-size:15px}
+.acccard .sub{color:var(--muted);font-size:12.5px;margin:0 0 6px}
+.acccard svg{width:100%;height:auto;display:block}
+tr.cur td{font-weight:700}
 .snapblk .dh{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;margin:16px 0 8px}
 .snapblk .dh h3{margin:0;font-size:16px}
 .exportrow{margin-top:12px;font-size:13px}
@@ -181,6 +191,7 @@ footer p{margin:0 0 8px}
 <div class="tabs" role="tablist" aria-label="View">
  <button type="button" role="tab" id="tabBtnFc" data-tab="fc" aria-controls="tabFc">Forecast weekly snapshot</button>
  <button type="button" role="tab" id="tabBtnPipe" data-tab="pipe" aria-controls="tabPipe">Pipeline status</button>
+ <button type="button" role="tab" id="tabBtnAcc" data-tab="acc" aria-controls="tabAcc">Forecast accuracy</button>
 </div>
 <div id="main">
 <div id="tabPipe" role="tabpanel" aria-labelledby="tabBtnPipe">
@@ -222,6 +233,25 @@ footer p{margin:0 0 8px}
 </section>
 </div>
 
+<div id="tabAcc" role="tabpanel" aria-labelledby="tabBtnAcc" hidden>
+<section>
+ <div class="acchead"><h2 id="accTitle">Forecast accuracy</h2><div class="seg" id="accQs" role="group" aria-label="Quarter"></div></div>
+ <p class="note" id="accNote"></p>
+ <div class="scroll"><table id="accTable"></table></div>
+ <div class="exportrow" id="accExport"></div>
+</section>
+<section>
+ <h2 id="accChartsTitle">Forecast over time vs close</h2>
+ <p class="note" id="accChartsNote"></p>
+ <div class="accgrid" id="accCharts"></div>
+</section>
+<section>
+ <h2>By quarter</h2>
+ <p class="note">Each lead's last forecast before the quarter ended, against how it closed. A quarter that isn't over shows what is still to close.</p>
+ <div class="scroll"><table id="accHist"></table></div>
+</section>
+</div>
+
 <!-- shared by both tabs: compares the tab's view at the start and end dates -->
 <section class="bridge">
  <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:baseline">
@@ -234,7 +264,7 @@ footer p{margin:0 0 8px}
  <div class="kpis" id="kpis"></div>
 </section>
 
-<section>
+<section id="movesSec">
  <h2>What changed</h2>
  <p class="note">Deals that entered or left, deals whose ARR went up or down while staying in, and deals that converted to won (these stay inside, so they are not movement), between the two points the waterfall compares.</p>
  <div id="moves"></div>
@@ -248,6 +278,7 @@ footer p{margin:0 0 8px}
  <p><b>Saved submissions.</b> Razieli saves every forecast submission's ARR waterfall rows to Snowflake (<code>REVOPS_ARR_WATERFALL_PRODUCTS_BINARY_SNAPSHOT</code> for the VP, <code>REVOPS_ARR_WATERFALL_PRODUCTS_BINARY_REGION_LEAD_SNAPSHOT</code> for region leads). Forecast weekly snapshot and its waterfall read the tab's lead's submissions from there, through your Snowflake connector, so a forecast shows exactly the deals, stages, forecast category and ARR they submitted, with later edits and deleted bookings having no effect. Next Q Commit and Next Q Best Case deals with ARR at the quarter end count in their pillar, as in Razieli. A submission Snowflake doesn't have, or a viewer without Snowflake, gets the rebuild from Salesforce history described below, and the page says so.</p>
  <p><b>Two views, both tied to the compare end date.</b> The waterfall and What changed follow the open tab: in Pipeline status they compare deal status at the start of the start date with the end of the end date; in Forecast weekly snapshot they compare the lead's latest submission on or before each date, with their judgment at each end when Razieli still has it. Pipeline status shows every deal's status at the end of the end date (right now when it is today). Forecast weekly snapshot shows the lead's last submission for the selected quarter on or before the end date (the saved snapshot, or where there is none the time of their latest #forecast-update post or Razieli's submit time, with each deal rebuilt from history as of that moment), plus the judgment that went with it when Razieli still has it.</p>
  <p>Judgment is the number the lead enters in Razieli on top of closed, Commit and Best Case, copied from Razieli on 14 Oct 2026, not read live (the page shows the copy date next to the judgment). Region leads: Daniel Pesce +$1.0M for Q4 2026 (resubmitted 12 Oct), +$200K for Q3 2026 and +$1.0M for Q1 2027 (12 Oct); Lidor Oz +$700K for Q4 2026 (13 Oct, previously +$500K on 27 Sep); Guy Port none. Their notes keep no previous judgment, so the previous values come from our own earlier copy. Shaka: Q4 2026 is +$3.35M (submitted 6 Oct 2026) and was +$2.35M before that (submitted 29 Sep 2026, dates from #forecast-update); Q1–Q3 2026 and all of 2027 have none. Razieli keeps only the current and previous judgment, so a date before 29 Sep has no judgment: a range starting before it shows only the end date's judgment, with no change, and a range ending before it shows none. A range that starts on or after 29 Sep and ends on or after 6 Oct shows the previous judgment and the change separately. Judgment columns show only with all products selected.</p>
+ <p><b>Forecast accuracy.</b> Every forecast each lead submitted in Razieli since its history starts (2 Jun 2026), using the Forecast number they enter, not best case, against Razieli's closed ARR for the quarter. It is a copy taken from Razieli on 14 Oct 2026 (<code>ACCURACY</code> in the page), so it doesn't need any connector. Region leads are grouped the way Razieli groups them, by the owner's reporting line. Two obvious typos are left out: Shaka's Q3 2026 forecast of $0 on 17 Jun and Daniel's Q3 2026 forecast of $1.0M on 23 Jun.</p>
  <p>Calendar dots mark days the tab's lead updated their forecast, read from the #forecast-update Slack channel.</p>
  <p>Data loads live from Salesforce with your own access each time the page opens, and is cached for 5 minutes. Use Refresh for a fresh pull.</p>
 </footer>
@@ -304,6 +335,15 @@ function judgmentRange(J, d0, d1) {
     : J.prev != null && J.prevSubmitted && (endOfDay ? d >= J.prevSubmitted : d > J.prevSubmitted) ? "prev" : null;
   return {start: at(d0, false), end: at(d1, true)};
 }
+
+/* ---------- forecast accuracy data ---------- */
+// Every forecast submission per lead and quarter, from Razieli get_judgment_history, copied ACC_AS_OF (not live).
+// subs: [submitted at (ms, UTC), Forecast (the number the lead entered, not best case), judgment].
+// closed: Razieli's closed ARR at the quarter end (closed so far, for a quarter that isn't over).
+// Razieli puts region leads' deals by the owner's reporting line, not by account region.
+// Left out as obvious typos: Shaka's 17 Jun 2026 Q3 submission ($0) and Daniel's 23 Jun 2026 Q3 submission ($1.0M).
+const ACC_AS_OF = "2026-10-14";
+const ACCURACY = {"co":{"Q2-2026":{"closed":126583088,"subs":[[1780432210066,126460147,0],[1780432249629,127000000,0],[1780432536503,127000000,0],[1780432575399,127000000,0],[1780952678935,127000000,0],[1780952833911,127200000,0],[1781620967316,127200000,0],[1781623760506,127200000,-1350000],[1781623809294,127200000,1],[1781623846985,127200000,-1350000],[1781624032241,127200000,1],[1781625137801,127200000,1],[1781625141999,127200000,2],[1781714996344,127250000,2],[1781718319297,127250000,2],[1781718396358,127200000,-1100000],[1782309783112,127200000,-1100000]]},"Q3-2026":{"closed":130479070,"subs":[[1780434436209,135000000,0],[1780953069526,135000000,0],[1780953093079,135000000,0],[1780953152620,135000000,0],[1780955205912,135000000,0],[1780955357310,135000000,0],[1780955518628,134800000,0],[1781625081315,134800000,0],[1781625623929,135800000,0],[1781713820228,136500000,0],[1781715277156,136500000,-350000],[1781718534348,136500000,-300000],[1781718557870,136500000,-350000],[1782329314470,136500000,-350000],[1782329724422,136500000,-1000000],[1782329766939,136500000,-350000],[1782329768325,136500000,-1000000],[1783459056477,135500000,-1000000],[1783464313119,135500000,-1000000],[1783464568605,135500000,750000],[1783465162767,135500000,750000],[1783466331998,137500000,350000],[1783625389401,137100000,350000],[1783625402849,137100000,450000],[1783625541239,137600000,-400000],[1784057485478,136750000,-550000],[1784057495169,136750000,-550000],[1784653029153,135150000,-450000],[1785291747588,135900000,-625000],[1785891694524,135700000,-675000],[1786460814184,134900000,-675000],[1786461297209,134900000,-150000],[1786461328065,134900000,-150000],[1786626359678,134750000,350000],[1786626365569,134750000,350000],[1786626371694,134750000,350000],[1786626381345,134750000,350000],[1786626392957,134750000,350000],[1786626403648,134750000,350000],[1786626465462,134750000,350000],[1787084445852,135600000,350000],[1787085732750,135600000,200000],[1787085834330,135600000,200000],[1787086291229,135600000,200000],[1787086295005,135600000,200000],[1787086309997,135600000,200000],[1787086320271,135600000,200000],[1787688619868,134600000,175000],[1787688729760,134900000,175000],[1788297010053,134900001,175000],[1788297033014,134900001,175000],[1788885486013,135000001,25000],[1788885689780,135000001,25000],[1790118231673,134050000,25000],[1790118250579,134050000,1],[1790683322385,133000000,1]]},"Q4-2026":{"closed":117313679,"subs":[[1782329887233,138758525,0],[1782330431148,138758525,0],[1783465909184,138758525,0],[1783466362667,138758525,0],[1783466534951,138758525,1050000],[1783466564177,138758525,1150000],[1783466929364,138758525,1150000],[1783467405548,138758525,1150000],[1783467507134,138758525,3000000],[1783467920753,138758525,1150000],[1783497461971,148000000,3000000],[1783498810672,147300000,3000000],[1783498821363,147300000,3000000],[1783527446222,147300000,2300000],[1783530459983,146600000,1450000],[1783625696997,145800000,3800000],[1784055106824,145850000,3450000],[1784059970688,145850000,3900000],[1784060296849,145650000,4400000],[1784060350040,146000000,4400000],[1784060359502,146000000,4400000],[1785292220350,146000000,3650000],[1785292232342,146000000,3650000],[1785893061450,146000000,2530000],[1785893142103,146000000,2530000],[1786460846831,145750000,2530000],[1786461882090,145750000,2000000],[1786461896200,145750000,2000000],[1786461940637,145750000,2000000],[1786461953414,145750000,2000000],[1786609906425,145850000,1750000],[1786609925764,145850000,1750000],[1786609931632,145850000,1750000],[1786609968463,145850000,1750000],[1786609980739,145850000,1750000],[1787084479100,145600000,1750000],[1787086839589,145600000,950000],[1787086878220,145600000,950000],[1787086888247,145600000,950000],[1787690909286,145600000,1050000],[1787690991671,145600000,1350000],[1787690997980,145600000,1350000],[1787691495973,145600000,1850000],[1787691549047,144600000,1850000],[1788297257960,144450000,1650000],[1788297286775,144450000,1650000],[1788297634009,144450000,1650000],[1788297714379,144450000,1900000],[1788297727366,144450000,1900000],[1788887136136,144000000,2350000],[1788887355368,144000000,2350000],[1788887419180,144000000,2350000],[1790121566964,144000000,2225000],[1790121618599,144000000,2225000],[1790685465843,143600000,2350000],[1791302352207,143350000,2850000],[1791302428756,143350000,3350000],[1791302463230,143350000,3350000]]}},"na":{"Q2-2026":{"closed":67983391,"subs":[[1780936815430,65117098,-168000],[1780936835944,65117098,-168000],[1781527768485,65773016,-168000],[1782739731847,65454516,-168000],[1782756080141,65195016,-168000]]},"Q3-2026":{"closed":71282153,"subs":[[1780937086150,70732831,1000000],[1782740398578,68868749,1000000],[1782756191831,72105749,1000000],[1783623710132,72711254,1000000],[1783950668225,72685754,1000000],[1784557605091,73476129,1000000],[1785179382033,73179021,1000000],[1785866631364,72662410,1000000],[1786385383690,72662410,1000000],[1787061046529,72603868,1000000],[1787578450054,72296868,1000000],[1788270271567,72296868,200000],[1788545428612,71738429,200000],[1790081349006,71594412,200000],[1790605294859,71538653,200000]]},"Q4-2026":{"closed":63381812,"subs":[[1783359178327,73484539,2000000],[1783950885368,76981895,2000000],[1784564527820,75169395,2000000],[1785866679143,75700148,1700000],[1787062622521,74368235,1000000],[1787579104611,74275104,1000000],[1788270705086,74444104,1000000],[1788545568272,75038665,1000000],[1790082738927,75937128,1000000],[1790605496890,75778202,1000000],[1791211740925,76068816,1000000],[1791815056882,76479045,1000000]]},"Q1-2027":{"closed":57100247,"subs":[[1791815145766,75900500,0],[1791815284303,75900500,1000000]]}},"emea":{"Q2-2026":{"closed":48142222,"subs":[[1780819462074,50209337,0],[1780823987086,50209337,1900000],[1780824505685,50209337,2300000],[1780824625865,50209337,0],[1780828278457,50209337,-100000],[1780828345812,50209337,0],[1780828389774,50209337,-100000],[1780828402290,50300000,-100000],[1780828421158,50300000,0],[1780836947388,50300000,-100000],[1780836971711,50308271,-100000],[1780837073260,50308271,2300000],[1780837109993,50308271,2300000],[1780840523022,50308271,0],[1780840538158,50308271,-100000],[1780840637837,50308271,2400000],[1780840755541,50308271,0],[1780903608993,50308271,-100000],[1781680304277,50200000,-100000],[1782113589629,50200000,0]]},"Q3-2026":{"closed":47970461,"subs":[[1780904040355,50190862,2300000],[1782120658404,48735251,0],[1783242373551,51116748,2835000],[1783673585117,55594350,3060000],[1784460764417,52126492,-2080000],[1785076997626,50786117,300000],[1785660502408,50708083,300000],[1786265060371,50880429,300000],[1788778600862,50406919,400000],[1789547422766,50632000,200000],[1790077096978,50632000,200000],[1790077109629,50632000,100000],[1790489749155,50044138,0],[1790490690417,49567714,0]]},"Q4-2026":{"closed":43053212,"subs":[[1783245894447,54041177,4100000],[1783677999499,52654769,-1960000],[1784465572462,56549901,300000],[1785662335839,54163974,300000],[1786272214794,54631948,450000],[1788852258913,53759725,400000],[1789547443469,52106054,400000],[1790490812341,52106054,400000],[1790491379236,52106054,500000],[1791898170516,51523560,700000],[1791898250207,51523560,700000],[1791898360512,50500000,700000]]}},"apac":{"Q3-2026":{"closed":11226456,"subs":[[1783897909567,11466339,0],[1784508359923,11290000,0],[1785721628488,11290000,0],[1786173637191,11330000,0],[1786914779911,11460000,0],[1789007672356,11400000,0],[1790061975232,11450000,0],[1790554646231,11480000,0]]},"Q4-2026":{"closed":10878655,"subs":[[1790311930725,12100000,0]]}}};
 
 /* ---------- small helpers ---------- */
 const $ = id => document.getElementById(id);
@@ -834,6 +874,133 @@ function renderForecastTab(period, d1) {
     rows.map(it => `<tr><td>${snapCell(it)}</td><td>${esc(statusAt(it.s))}</td><td>${esc(statusAt(stateAt(it.o, T1, period)))}</td><td>${esc(it.o.owner || "")}</td><td class="fromto">${md(it.s.mad)}</td><td class="n">${full(sv(it))}</td></tr>`).join("") +
     `<tr class="tot"><td colspan="5">Total</td><td class="n">${full(sum(rows, sv))}</td></tr></tbody>`;
 }
+/* ---------- forecast accuracy ---------- */
+const accQ0 = q => { const [n, y] = q.slice(1).split("-").map(Number); return iso(new Date(Date.UTC(y, (n - 1) * 3, 1))); };
+const accQ1 = q => { const [n, y] = q.slice(1).split("-").map(Number); return iso(new Date(Date.UTC(y, n * 3, 0))); };
+const qName = q => q.replace("-", " ");
+const accDone = q => accQ1(q) < ACC_AS_OF;
+const pct = x => (x * 100).toFixed(1) + "%";
+const fmtS = n => (n > 0 ? "+" : "") + fmt(n);
+const overUnder = e => Math.abs(e) < 0.0005 ? "on target" : `${pct(Math.abs(e))} ${e > 0 ? "over" : "under"}`;
+const dayMonth = t => new Date(t).toLocaleDateString("en-GB", {day: "numeric", month: "short", timeZone: "UTC"});
+const r1 = n => Math.round(n * 10) / 10;
+const WEEK0 = Date.UTC(1970, 0, 5); // a Monday
+const accQuarters = () => [...new Set(VIEWS.flatMap(v => Object.keys(ACCURACY[v.key] || {})))].sort((a, b) => accQ1(a).localeCompare(accQ1(b)));
+// One lead's submissions for a quarter, up to the quarter end. The chart uses the last one of each day; the average miss and
+// bias use the last one of each week inside the quarter, so a day with many resubmits counts once.
+function accStats(key, q) {
+  const A = (ACCURACY[key] || {})[q];
+  if (!A) return null;
+  const subs = A.subs.filter(s => s[0] <= Date.parse(accQ1(q) + "T23:59:59Z")).sort((a, b) => a[0] - b[0]);
+  if (!subs.length) return null;
+  const days = new Map(), weeks = new Map(), q0 = Date.parse(accQ0(q) + "T00:00:00Z");
+  for (const s of subs) {
+    const k = Math.floor(s[0] / DAY);
+    days.set(k, {s, n: ((days.get(k) || {}).n || 0) + 1});
+    if (s[0] >= q0) weeks.set(Math.floor((s[0] - WEEK0) / (7 * DAY)), s);
+  }
+  const C = A.closed, done = accDone(q), errs = [...weeks.values()].map(s => (s[1] - C) / C);
+  return {subs, days: [...days.values()], first: subs[0], last: subs[subs.length - 1], C, done, weeks: errs.length,
+    avgAbs: done && errs.length ? sum(errs, Math.abs) / errs.length : null, bias: done && errs.length ? sum(errs, e => e) / errs.length : null};
+}
+function niceStep(x) { const p = 10 ** Math.floor(Math.log10(x)); return p * ([1, 2, 2.5, 5, 10].find(m => m * p >= x) || 10); }
+// Step chart: the lead's Forecast at each submission, the quarter shaded, and a dashed line at what the quarter closed at
+function accChart(v, st, q, t0, t1) {
+  const W = 480, H = 210, m = {l: 52, r: 10, t: 12, b: 24}, now = Date.parse(ACC_AS_OF + "T23:59:59Z"), tEnd = st.done ? t1 : Math.min(t1, now);
+  const vals = [...st.days.map(d => d.s[1]), st.C];
+  let lo = Math.min(...vals), hi = Math.max(...vals);
+  const pad = Math.max((hi - lo) * 0.12, st.C * 0.01), step = niceStep((hi - lo + 2 * pad) / 4);
+  lo = Math.floor((lo - pad) / step) * step; hi = Math.ceil((hi + pad) / step) * step;
+  const X = t => r1(m.l + (t - t0) / (t1 - t0) * (W - m.l - m.r)), Y = n => r1(m.t + (hi - n) / (hi - lo) * (H - m.t - m.b));
+  const dec = step % 1e6 === 0 ? 0 : step % 1e5 === 0 ? 1 : 2;
+  const qa = X(Math.max(t0, Date.parse(accQ0(q) + "T00:00:00Z")));
+  let g = `<rect x="${qa}" y="${m.t}" width="${r1(X(t1) - qa)}" height="${H - m.t - m.b}" fill="var(--soft)"/>`;
+  for (let i = 0, k = Math.round((hi - lo) / step); i <= k; i++) {
+    const y = Y(lo + i * step);
+    g += `<line x1="${m.l}" x2="${W - m.r}" y1="${y}" y2="${y}" stroke="var(--line)" stroke-width="0.6"/><text x="${m.l - 6}" y="${r1(y + 3.5)}" text-anchor="end" class="ax">$${((lo + i * step) / 1e6).toFixed(dec)}M</text>`;
+  }
+  const s0 = new Date(t0);
+  for (let d = new Date(Date.UTC(s0.getUTCFullYear(), s0.getUTCMonth() + 1, 1)); d.getTime() <= t1; d.setUTCMonth(d.getUTCMonth() + 1)) {
+    const x = X(d.getTime());
+    g += `<line x1="${x}" x2="${x}" y1="${H - m.b}" y2="${H - m.b + 4}" stroke="var(--muted)"/><text x="${x}" y="${H - 7}" text-anchor="middle" class="ax">${d.toLocaleDateString("en-GB", {month: "short", timeZone: "UTC"})}</text>`;
+  }
+  if (!st.done && now < t1) { const x = X(now); g += `<line x1="${x}" x2="${x}" y1="${m.t}" y2="${H - m.b}" stroke="var(--muted)" stroke-dasharray="2 3"/><text x="${r1(x + 4)}" y="${H - m.b - 5}" class="ax">${dayMonth(now)}</text>`; }
+  const yc = Y(st.C);
+  g += `<line x1="${m.l}" x2="${W - m.r}" y1="${yc}" y2="${yc}" stroke="var(--won)" stroke-width="1.5" stroke-dasharray="5 4"/>` +
+    `<text x="${m.l + 6}" y="${r1(yc + (st.first[1] >= st.C ? 14 : -6))}" class="lab" fill="var(--won)">${st.done ? "Closed" : "Closed so far"} ${fmt(st.C)}</text>`;
+  let p = "";
+  st.days.forEach((d, i) => { p += i ? `H${X(d.s[0])}V${Y(d.s[1])}` : `M${X(d.s[0])} ${Y(d.s[1])}`; });
+  g += `<path d="${p}H${X(tEnd)}" fill="none" stroke="var(--commit)" stroke-width="2"/>`;
+  for (const d of st.days) {
+    const [t, f, j] = d.s;
+    const tip = `${fmtWhen(t)}: Forecast ${full(f)}${st.done ? `, ${overUnder((f - st.C) / st.C)} vs closed` : ""}${Math.abs(j) >= 1000 ? `. Judgment ${signed(j)}` : ""}${d.n > 1 ? ` (last of ${d.n} submissions that day)` : ""}`;
+    g += `<g><title>${esc(tip)}</title><circle cx="${X(t)}" cy="${Y(f)}" r="9" fill="transparent"/><circle cx="${X(t)}" cy="${Y(f)}" r="3.2" fill="var(--commit)" stroke="var(--surface)" stroke-width="1"/></g>`;
+  }
+  // label the last forecast on the side its line didn't come from
+  const ly = Y(st.last[1]), prev = st.days.length > 1 ? st.days[st.days.length - 2].s[1] : st.last[1], below = prev > st.last[1] ? ly + 15 < H - m.b : ly - 7 < m.t + 9;
+  g += `<text x="${r1(X(tEnd) - 2)}" y="${r1(below ? ly + 15 : ly - 7)}" text-anchor="end" class="lab" fill="var(--commit)">Last ${fmt(st.last[1])}</text>`;
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(`${v.leadFull}'s forecast for ${qName(q)} at each submission, against ${st.done ? "what it closed at" : "what has closed so far"}`)}">${g}</svg>`;
+}
+function renderAccuracy() {
+  const qs = accQuarters();
+  let q = S.accq || store.get("accq", null);
+  if (!qs.includes(q)) q = [...qs].reverse().find(accDone) || qs[qs.length - 1];
+  const done = accDone(q), cur = V().key, rows = VIEWS.map(v => ({v, st: accStats(v.key, q)})), have = rows.filter(r => r.st);
+  const lead = v => `${esc(v.label)}<br><span class="muted">${esc(v.leadFull)}</span>`, trc = v => v.key === cur ? ' class="cur"' : "";
+  $("accQs").innerHTML = qs.map(x => `<button type="button" data-q="${x}" aria-pressed="${x === q}">${esc(qName(x))}</button>`).join("");
+  $("accQs").querySelectorAll("button").forEach(b => b.addEventListener("click", () => { S.accq = b.dataset.q; store.set("accq", S.accq); renderAccuracy(); }));
+  $("accTitle").textContent = `Forecast accuracy, ${qName(q)}`;
+  const hist0 = Math.min(...VIEWS.flatMap(v => Object.values(ACCURACY[v.key] || {}).flatMap(A => A.subs.map(s => s[0]))));
+  $("accNote").textContent = `Each lead's Forecast in Razieli (the number they enter, not best case), against the ARR the quarter ${done ? "closed at" : "has closed so far"}, per Razieli. ` +
+    (done ? `Last forecast is their final submission before the quarter ended. Average miss and bias use their last submission of each week inside the quarter; bias shows whether they tend to forecast over or under.`
+      : `${qName(q)} isn't over, so the gap is what's still to close, not a miss. Closed so far is as of ${dmy(ACC_AS_OF)}.`) +
+    (hist0 > Date.parse(accQ0(q) + "T00:00:00Z") ? ` Razieli's submission history starts on ${dmy(iso(new Date(hist0)))}, so ${qName(q)} covers only part of the quarter.` : "");
+  $("accTable").innerHTML = `<thead><tr><th>Lead</th><th class="n">Submissions</th><th class="n">First forecast</th><th class="n">Last forecast</th><th class="n">${done ? "Closed" : "Closed so far"}</th>` +
+    `<th class="n">${done ? "Last vs closed" : "Still to close"}</th><th class="n">Average miss</th><th class="n">Bias</th></tr></thead><tbody>` +
+    rows.map(({v, st}) => !st ? `<tr${trc(v)}><td>${lead(v)}</td><td colspan="7" class="muted">No forecasts for ${esc(qName(q))} in Razieli</td></tr>` :
+      `<tr${trc(v)}><td>${lead(v)}</td><td class="n">${st.subs.length}</td>` +
+      [st.first, st.last].map(s => `<td class="n">${fmt(s[1])}<br><span class="muted">${dayMonth(s[0])}</span></td>`).join("") +
+      `<td class="n">${fmt(st.C)}</td>` +
+      (done ? `<td class="n">${fmtS(st.last[1] - st.C)}<br><span class="muted">${overUnder((st.last[1] - st.C) / st.C)}</span></td>` +
+        `<td class="n">${st.avgAbs == null ? "–" : pct(st.avgAbs)}<br><span class="muted">${st.weeks} week${st.weeks === 1 ? "" : "s"}</span></td><td class="n">${st.bias == null ? "–" : overUnder(st.bias)}</td>`
+        : `<td class="n">${fmt(st.last[1] - st.C)}</td><td class="n muted">–</td><td class="n muted">–</td>`) + `</tr>`).join("") + "</tbody>";
+  $("accExport").innerHTML = S.dl ? `<button type="button" class="btn" id="accCsv">Export every submission (CSV)</button><span class="muted" data-export-msg></span>` : "";
+  if (S.dl) $("accCsv").addEventListener("click", e => exportAccuracy(e.currentTarget));
+  $("accChartsTitle").textContent = `${qName(q)} forecast over time`;
+  $("accChartsNote").textContent = `Blue steps are the lead's Forecast at each submission (hover a dot for the time, the number and the judgment); the dashed green line is what the quarter ${done ? "closed at" : "has closed so far"}; the shaded band is the quarter itself.` +
+    (done ? "" : ` The dotted line marks ${dmy(ACC_AS_OF)}, when this was copied from Razieli.`);
+  const t1 = Date.parse(accQ1(q) + "T23:59:59Z"), t0 = Math.min(Date.parse(accQ0(q) + "T00:00:00Z"), ...have.map(r => Math.floor(r.st.first[0] / DAY) * DAY)) - 3 * DAY;
+  $("accCharts").innerHTML = rows.map(({v, st}) => `<div class="acccard${v.key === cur ? " cur" : ""}"><h3>${esc(v.label)} · ${esc(v.leadFull)}</h3>` + (!st ? `<p class="sub">No forecasts for ${esc(qName(q))} in Razieli.</p>` :
+    `<p class="sub">${done ? `Last forecast ${fmt(st.last[1])} on ${dayMonth(st.last[0])}, ${overUnder((st.last[1] - st.C) / st.C)} against the ${fmt(st.C)} it closed at.`
+      : `Last forecast ${fmt(st.last[1])} on ${dayMonth(st.last[0])}; ${fmt(st.C)} closed so far, ${fmt(st.last[1] - st.C)} still to close.`} ${st.subs.length} submission${st.subs.length === 1 ? "" : "s"}.</p>` + accChart(v, st, q, t0, t1)) + `</div>`).join("");
+  $("accHist").innerHTML = `<thead><tr><th>Lead</th>${qs.map(x => `<th class="n">${esc(qName(x))}${accDone(x) ? "" : " (not over)"}</th>`).join("")}</tr></thead><tbody>` +
+    VIEWS.map(v => `<tr${trc(v)}><td>${lead(v)}</td>` + qs.map(x => {
+      const s = accStats(v.key, x);
+      if (!s) return `<td class="n muted">–</td>`;
+      return s.done ? `<td class="n">${overUnder((s.last[1] - s.C) / s.C)}<br><span class="muted">${fmt(s.last[1])} vs ${fmt(s.C)}</span></td>`
+        : `<td class="n">${fmt(s.last[1] - s.C)} to close<br><span class="muted">${fmt(s.last[1])} vs ${fmt(s.C)} so far</span></td>`;
+    }).join("") + `</tr>`).join("") + "</tbody>";
+}
+async function exportAccuracy(btn) {
+  const rows = [];
+  for (const v of VIEWS) for (const q of accQuarters()) {
+    const A = (ACCURACY[v.key] || {})[q], done = accDone(q);
+    if (A) for (const [t, f, j] of A.subs) rows.push([v.label, v.leadFull, qName(q), new Date(t).toISOString().replace(/\.\d+Z$/, "Z"), f, Math.abs(j) >= 1000 ? j : "",
+      A.closed, done ? "Closed" : `Closed so far (${ACC_AS_OF})`, f - A.closed, done ? ((f - A.closed) / A.closed * 100).toFixed(2) + "%" : ""]);
+  }
+  const head = ["Tab", "Lead", "Quarter", "Submitted (UTC)", "Forecast (USD)", "Judgment (USD)", "Closed ARR (USD)", "Closed ARR is", "Forecast minus closed (USD)", "Forecast vs closed"];
+  const csv = "﻿" + [head, ...rows].map(r => r.map(csvCell).join(",")).join("\r\n") + "\r\n";
+  const msg = btn.parentElement.querySelector("[data-export-msg]");
+  try {
+    await S.dl.save({filename: `forecast-accuracy-${ACC_AS_OF}.csv`, data: csv});
+    if (msg) msg.textContent = "";
+  } catch (e) {
+    const code = e && e.code;
+    if (code === "declined") return;
+    if (["unavailable", "not_granted", "capability_disabled", "capability_removed"].includes(code)) { S.dl = null; render(); return; }
+    if (msg) msg.textContent = code === "rate_limited" ? " A save prompt is already open." : " Couldn't export right now.";
+  }
+}
 // Company / region tabs: each keeps its own compare dates and Pipeline / Forecast choice
 function renderViewBar() {
   $("views").innerHTML = VIEWS.map(v => `<button type="button" role="tab" data-view="${v.key}" aria-pressed="${v.key === V().key}" aria-selected="${v.key === V().key}">${esc(v.label)}<small>${esc(v.lead)}</small></button>`).join("");
@@ -846,15 +1013,18 @@ function setView(key) {
   const st = S.vstate[S.view] || {d0: store.get("d0:" + S.view, $("d0").value), d1: todayISO(), tab: store.get("tab:" + S.view, S.tab)};
   $("d0").value = st.d0 < minStart() ? minStart() : st.d0; $("d1").value = st.d1;
   S.sel_step = null; S.snapSel = {pipe: null, fc: null};
-  updateRangeBtn(); renderViewBar(); setTab(st.tab);
+  // Forecast accuracy compares every lead, so it stays open when switching tabs
+  updateRangeBtn(); renderViewBar(); setTab(S.tab === "acc" ? "acc" : st.tab);
   if (S.cal) renderCal();
   if (needsReload()) load(false); else render();
 }
 function setTab(tab) {
-  S.tab = tab === "fc" ? "fc" : "pipe"; store.set("tab:" + V().key, S.tab);
+  S.tab = ["fc", "pipe", "acc"].includes(tab) ? tab : "pipe"; store.set("tab:" + V().key, S.tab);
   document.body.dataset.tab = S.tab;
-  $("tabPipe").hidden = S.tab !== "pipe"; $("tabFc").hidden = S.tab !== "fc";
-  $("tabBtnPipe").setAttribute("aria-selected", String(S.tab === "pipe")); $("tabBtnFc").setAttribute("aria-selected", String(S.tab === "fc"));
+  for (const [t, panel, btn] of [["pipe", "tabPipe", "tabBtnPipe"], ["fc", "tabFc", "tabBtnFc"], ["acc", "tabAcc", "tabBtnAcc"]]) {
+    $(panel).hidden = S.tab !== t; $(btn).setAttribute("aria-selected", String(S.tab === t));
+  }
+  if (S.tab === "acc") renderAccuracy();
 }
 function renderProdTable(d0, d1) {
   const agg = {};
@@ -1054,6 +1224,7 @@ function renderAll(d1) {
     `<tr class="tot"><td colspan="6">Total</td><td class="n">${full(sum(rows, v1))}</td></tr></tbody>`;
 }
 function render() {
+  if (S.tab === "acc") { renderAccuracy(); return; }
   if (!S.loaded) return;
   const period = periodById($("period").value), d0 = $("d0").value, d1 = $("d1").value;
   requestSnapList(period);
