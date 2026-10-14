@@ -247,7 +247,7 @@ footer p{margin:0 0 8px}
  <p>The start and end positions are rebuilt from Salesforce field history on the forecast column, Stage, Min ARR Date and Min ARR Period Amount ($). ARR Breakdown keeps no history, but its rows are built from Bookings, which do: when any of a deal's bookings changed after the earlier moment (ARR start or end date, ARR base amount, or which deal it belongs to), the deal's quarter-end ARR then is rebuilt from its bookings as they stood, a booking counting when its ARR period covered the quarter's last month. Otherwise a deal's value is its ARR row scaled by how its Min ARR amount has changed since. Deleted bookings leave no history and can't be rebuilt. A deal that has a row today but whose Min ARR date was after the quarter end on the earlier date counts as pulled into the period. A deal that no longer has a row (Min ARR date moved past the quarter end, or closed lost, which removes the rows) is valued from its first ARR period, or for closed lost from its opportunity products. Field history goes back 18 months.</p>
  <p><b>Saved submissions.</b> Razieli saves every forecast submission's ARR waterfall rows to Snowflake (<code>REVOPS_ARR_WATERFALL_PRODUCTS_BINARY_SNAPSHOT</code> for the VP, <code>REVOPS_ARR_WATERFALL_PRODUCTS_BINARY_REGION_LEAD_SNAPSHOT</code> for region leads). Forecast weekly snapshot and its waterfall read the tab's lead's submissions from there, through your Snowflake connector, so a forecast shows exactly the deals, stages, forecast category and ARR they submitted, with later edits and deleted bookings having no effect. Next Q Commit and Next Q Best Case deals with ARR at the quarter end count in their pillar, as in Razieli. A submission Snowflake doesn't have, or a viewer without Snowflake, gets the rebuild from Salesforce history described below, and the page says so.</p>
  <p><b>Two views, both tied to the compare end date.</b> The waterfall and What changed follow the open tab: in Pipeline status they compare deal status at the start of the start date with the end of the end date; in Forecast weekly snapshot they compare the lead's latest submission on or before each date, with their judgment at each end when Razieli still has it. Pipeline status shows every deal's status at the end of the end date (right now when it is today). Forecast weekly snapshot shows the lead's last submission for the selected quarter on or before the end date (the saved snapshot, or where there is none the time of their latest #forecast-update post or Razieli's submit time, with each deal rebuilt from history as of that moment), plus the judgment that went with it when Razieli still has it.</p>
- <p>Judgment is the number the lead enters in Razieli on top of closed, Commit and Best Case, copied from Razieli on 7 Oct 2026, not read live. Region leads: Daniel Pesce +$1.0M for Q4 2026 (5 Oct) and +$200K for Q3 2026; Lidor Oz +$500K for Q4 2026 (27 Sep); Guy Port none. Their notes keep no previous judgment. Shaka: Q4 2026 is +$3.35M (submitted 6 Oct 2026) and was +$2.35M before that (submitted 29 Sep 2026, dates from #forecast-update); Q1–Q3 2026 and all of 2027 have none. Razieli keeps only the current and previous judgment, so a date before 29 Sep has no judgment: a range starting before it shows only the end date's judgment, with no change, and a range ending before it shows none. A range that starts on or after 29 Sep and ends on or after 6 Oct shows the previous judgment and the change separately. Judgment columns show only with all products selected.</p>
+ <p>Judgment is the number the lead enters in Razieli on top of closed, Commit and Best Case, copied from Razieli on 14 Oct 2026, not read live (the page shows the copy date next to the judgment). Region leads: Daniel Pesce +$1.0M for Q4 2026 (resubmitted 12 Oct), +$200K for Q3 2026 and +$1.0M for Q1 2027 (12 Oct); Lidor Oz +$700K for Q4 2026 (13 Oct, previously +$500K on 27 Sep); Guy Port none. Their notes keep no previous judgment, so the previous values come from our own earlier copy. Shaka: Q4 2026 is +$3.35M (submitted 6 Oct 2026) and was +$2.35M before that (submitted 29 Sep 2026, dates from #forecast-update); Q1–Q3 2026 and all of 2027 have none. Razieli keeps only the current and previous judgment, so a date before 29 Sep has no judgment: a range starting before it shows only the end date's judgment, with no change, and a range ending before it shows none. A range that starts on or after 29 Sep and ends on or after 6 Oct shows the previous judgment and the change separately. Judgment columns show only with all products selected.</p>
  <p>Calendar dots mark days the tab's lead updated their forecast, read from the #forecast-update Slack channel.</p>
  <p>Data loads live from Salesforce with your own access each time the page opens, and is cached for 5 minutes. Use Refresh for a fresh pull.</p>
 </footer>
@@ -276,7 +276,7 @@ const V = () => VIEWS.find(v => v.key === S.view) || VIEWS[0];
 const inView = o => !V().regions || V().regions.includes(o.region);
 
 // Judgment per view and quarter, from Razieli get_forecast_rollup (VP and region lead rows). Snapshot, not live.
-const JUDGMENT_AS_OF = "2026-10-07";
+const JUDGMENT_AS_OF = "2026-10-14";
 // Razieli keeps only the current and the previous judgment. The previous one was in effect from `prevSubmitted` until `submitted`
 // (dates of the lead's last two submissions for the quarter, from #forecast-update); before `prevSubmitted` no judgment is known.
 // Region leads' notes keep no previous judgment (prev: null).
@@ -290,9 +290,11 @@ const JUDGMENT_CO = {
 };
 const JUDGMENT = {
   co: JUDGMENT_CO,
-  na: {"Q4-2026": {val: 1000000, prev: null, submitted: "2026-10-05", submittedAt: "2026-10-05T14:49:00Z", items: [["1,000,000 for Q4", null, 1000000]]},
-       "Q3-2026": {val: 200000, prev: null, submitted: "2026-09-28", submittedAt: "2026-09-28T14:21:16Z", items: [["additional pipeline", null, 200000]]}},
-  emea: {"Q4-2026": {val: 500000, prev: null, submitted: "2026-09-27", submittedAt: "2026-09-27T06:43:45Z", items: [["+500K from pipeline deals", null, 500000]]}},
+  // region leads' notes keep no previous section; `prev` is the judgment from our own earlier copy of Razieli
+  na: {"Q4-2026": {val: 1000000, prev: 1000000, submitted: "2026-10-12", submittedAt: "2026-10-12T14:24:09Z", prevSubmitted: "2026-10-05", items: [["1,000,000 for Q4", 1000000, 1000000]]},
+       "Q3-2026": {val: 200000, prev: null, submitted: "2026-09-28", submittedAt: "2026-09-28T14:21:16Z", items: [["additional pipeline", null, 200000]]},
+       "Q1-2027": {val: 1000000, prev: null, submitted: "2026-10-12", submittedAt: "2026-10-12T14:27:54Z", items: [["Q1", null, 1000000]]}},
+  emea: {"Q4-2026": {val: 700000, prev: 500000, submitted: "2026-10-13", submittedAt: "2026-10-13T13:32:30Z", prevSubmitted: "2026-09-27", items: [["Pipeline deals (\"+700K from pipeline deals\"; was \"+500K\")", 500000, 700000]]}},
   apac: {}
 };
 const judgmentFor = id => { const j = (JUDGMENT[V().key] || {})[id]; return j && (Math.round(j.val / 1000) || Math.round((j.prev || 0) / 1000)) ? j : null; };
@@ -633,7 +635,7 @@ function renderSnapBlock(elId, key, cfg) {
     return {k, lab: d[0], col: d[2], val: sum(its, sv), sub: `${its.filter(it => sv(it) > 0).length} deals`};
   });
   const deals = sum(parts, p => p.val);
-  if (jn) parts.push({k: "judg", lab: `${V().lead}'s judgment`, col: "--judg", val: jn.val, sub: `submitted ${dmy(jn.date).slice(0, -5)}`, judg: true});
+  if (jn) parts.push({k: "judg", lab: `${V().lead}'s judgment`, col: "--judg", val: jn.val, sub: `submitted ${dmy(jn.date).slice(0, -5)} · copied from Razieli ${dmy(JUDGMENT_AS_OF).slice(0, -5)}`, judg: true});
   const t = sum(parts, p => p.val), won = parts[0].val;
   // a negative judgment has no width in a stacked bar, so it shows in the legend only
   const span = sum(parts, p => Math.max(0, p.val));
