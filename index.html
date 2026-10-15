@@ -803,6 +803,8 @@ function productValues(o, amtAt) {
 // a booking adds its USD ARR to the quarter-end row when its ARR period covers that month). Returns null when none of the deal's
 // bookings changed after T, so the current rows already describe T.
 const bkVal = (b, f, cur, T) => { for (const h of b.hist) if (h.f === f && h.t > T) return h.old; return cur; };
+// Whether the deal's own bookings, as they are now, put ARR in the quarter's last month
+const bookingsCover = (o, period) => { const qe = period.p1, ms = monthStart(qe); return o.bk.some(b => b.opp === o.id && b.start && b.end && b.start <= qe && b.end >= ms); };
 function bookingsAt(o, T, period) {
   if (!o.bk || !o.bk.some(b => b.created > T || b.hist.some(h => h.t > T))) return null;
   const qe = period.p1, ms = monthStart(qe), now = {}, then = {};
@@ -830,11 +832,13 @@ function stateAt(o, T, period) {
   const st = valueAt(o, "StageName", o.stage, T), vp = valueAt(o, V().field, o[V().fkey], T);
   const mad = valueAt(o, "Min_ARR_Date__c", o.mad, T), amt = valueAt(o, "Min_ARR_Period_Amount_Dollar__c", o.amt, T);
   // A deal counts for the period when it has an ARR row at the quarter end. For an earlier moment, a deal whose bookings changed
-  // since then is rebuilt from booking history. Otherwise, as rows keep no history, the Min ARR date decides: a deal with a row today
-  // was not in the period yet if its Min ARR date was after the quarter end; a deal with no row today (pushed out or closed lost since)
-  // was in the period if its Min ARR date then fell inside it.
+  // since then is rebuilt from booking history. Otherwise, as rows keep no history: a deal with a row today was not in the period yet
+  // if its Min ARR date was after the quarter end. A deal with no row today whose bookings haven't changed since had no row then
+  // either, unless its bookings still cover the quarter end (its rows went with a later closed lost); only a deal without bookings
+  // falls back to its Min ARR date then, inside the period meaning it was in.
   const bk = T != null ? bookingsAt(o, T, period) : null;
-  let inP = bk ? bk.covered : o.hasRow ? !(mad && mad > period.p1) : (T != null && !!mad && mad >= period.p0 && mad <= period.p1);
+  let inP = bk ? bk.covered : o.hasRow ? !(mad && mad > period.p1) : T == null ? false
+    : o.bk && o.bk.some(b => b.opp === o.id) ? bookingsCover(o, period) : !!mad && mad >= period.p0 && mad <= period.p1;
   const b = exists ? bucket(st, vp) : "NotExist";
   // Next Q Best Case / Next Q Commit: the deal belongs to the quarter after its own (Min ARR date) quarter,
   // so it only counts for periods that reach the end of that next quarter.
