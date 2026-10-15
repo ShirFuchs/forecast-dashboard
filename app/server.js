@@ -34,6 +34,8 @@ const RZ = {url: ENV.RAZIELI_URL || "https://app.wscast.com/api/mcp", tokenSecre
 // Documents the page keeps (Aviv's inputs), in a Cloud Storage bucket; only these people may change them
 const STORE = {bucket: ENV.STORE_BUCKET || "revenue-operations-475018-forecast-dashboard",
   editors: new Set((ENV.AVIV_EDITORS || "").toLowerCase().split(/[;,\s]+/).filter(Boolean))};
+// "*" in the list lets anyone signed in (any @wsc-sports.com account) change them
+const canEditDocs = email => STORE.editors.has("*") || STORE.editors.has(email);
 const SESSION_SECRET = ENV.SESSION_KEY_SECRET || "forecast-dashboard-session-key";
 
 const log = (severity, message, extra) => console.log(JSON.stringify({severity, message, ...extra}));
@@ -181,7 +183,7 @@ function limiter(n) {
 const lowerSet = s => new Set(s.toLowerCase().split(/\s+/));
 const SOQL_ALLOW = Object.fromEntries(Object.entries({
   ARR_Breakdown__c: "Id Opportunity__c Product__r.Name ARR_Dollar__c ARR_End_Date__c First_Deal_ARR__c Opportunity__r.Name Opportunity__r.Type " +
-    "Opportunity__r.StageName Opportunity__r.VP_Forecast__c Opportunity__r.Region_Lead_Forecast__c Opportunity__r.Region__c Opportunity__r.Owner.Name " +
+    "Opportunity__r.StageName Opportunity__r.VP_Forecast__c Opportunity__r.Region_Lead_Forecast__c Opportunity__r.Region__c Opportunity__r.Owner.Name Opportunity__r.Account.Name " +
     "Opportunity__r.CreatedDate Opportunity__r.Min_ARR_Date__c Opportunity__r.Min_ARR_Period_Amount_Dollar__c Opportunity__r.LastModifiedDate",
   Opportunity: "Id Name Type StageName VP_Forecast__c Region_Lead_Forecast__c Region__c Owner.Name CreatedDate Min_ARR_Date__c Min_ARR_Period_Amount_Dollar__c",
   OpportunityFieldHistory: "Id OpportunityId Field OldValue NewValue CreatedDate CreatedBy.Name",
@@ -533,7 +535,7 @@ async function handle(req, res) {
   if (m === "GET" && p === "/api/session") {
     const app = await snowApp().catch(() => null), s = app ? await snowRead(req, who) : null;
     return send(res, 200, {email: who.email, snowflake: {configured: !!app, connected: !!s, user: s ? s.user : null, until: s ? s.rtExp : null},
-      canEditDocs: STORE.editors.has(who.email)});
+      canEditDocs: canEditDocs(who.email)});
   }
   if (m === "GET" && p === "/api/doc") {
     const path = url.searchParams.get("path") || "";
@@ -570,7 +572,7 @@ async function handle(req, res) {
     if (p === "/api/doc") {
       const clean = DOCS[body.path];
       if (!clean) return fail(res, 404, "not_found", "No such document.");
-      if (!STORE.editors.has(who.email)) return fail(res, 403, "invalid_argument", "You can view this but not change it.");
+      if (!canEditDocs(who.email)) return fail(res, 403, "invalid_argument", "You can view this but not change it.");
       const data = {...clean(body.data), updatedAt: Date.now(), updatedBy: who.email};
       // without the generation it builds on, a save can only create the document, never replace one
       const gen = await docSet(body.path, data, /^\d+$/.test(String(body.gen)) ? String(body.gen) : "0");

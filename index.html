@@ -283,8 +283,8 @@ tr.cur td{font-weight:700}
 </section>
 <section>
  <div class="acchead"><h2 id="avDealsTitle">Open deals</h2>
-  <div class="avfilters"><input type="search" id="avSearch" placeholder="Search deal, owner or region" aria-label="Search deals"><div class="seg" id="avFilt" role="group" aria-label="Show"></div></div></div>
- <p class="note">Open deals with ARR at 31 Dec 2026 that Shaka's VP forecast has in Commit, Best Case or Pipeline (Next Q Commit and Next Q Best Case start in Commit and Best Case, as in Razieli). Aviv's call starts as Shaka's. Change it, or type an amount (such as 250k or 1.2M) to replace the Salesforce ARR; clear the amount to go back to Salesforce. Commit and Best Case count in Aviv's forecast, Pipeline doesn't. Rows Aviv changed are marked in purple.</p>
+  <div class="avfilters"><input type="search" id="avSearch" placeholder="Search deal, account, owner or region" aria-label="Search deals"><div class="seg" id="avFilt" role="group" aria-label="Show"></div></div></div>
+ <p class="note">Open deals with ARR at 31 Dec 2026 that Shaka's VP forecast or the region lead's forecast has in Commit, Best Case or Pipeline (Next Q Commit and Next Q Best Case start in Commit and Best Case, as in Razieli). Aviv's call starts as Shaka's. Change it, or type an amount (such as 250k or 1.2M) to replace the Salesforce ARR; clear the amount to go back to Salesforce. Commit and Best Case count in Aviv's forecast, Pipeline doesn't. Rows Aviv changed are marked in purple.</p>
  <div class="scroll"><table id="avTable"></table></div>
 </section>
 <section>
@@ -322,7 +322,7 @@ tr.cur td{font-weight:700}
  <p><b>Two views, both tied to the compare end date.</b> The waterfall and What changed follow the open tab: in Pipeline status they compare deal status at the start of the start date with the end of the end date; in Forecast weekly snapshot they compare the lead's latest submission on or before each date, with their judgment at each end when Razieli still has it. Pipeline status shows every deal's status at the end of the end date (right now when it is today). Forecast weekly snapshot shows the lead's last submission for the selected quarter on or before the end date (the saved snapshot, or where there is none the time of their latest #forecast-update post or Razieli's submit time, with each deal rebuilt from history as of that moment), plus the judgment that went with it when Razieli still has it.</p>
  <p>Judgment is the number the lead enters in Razieli on top of closed, Commit and Best Case. Every Razieli submission carries the judgment entered with it, so each forecast shows its own judgment, and the waterfall puts the starting forecast's judgment in the starting balance and shows only the change in purple. Each judgment is split into the lines of the lead's judgment note where the lines have amounts; whatever they don't account for shows as one more line. Shaka's judgments of $1 or $2 are markers and count as none. Razieli's history sometimes misses a lead's latest submission; it's added back from Razieli's current forecast. The Cloud Run app reads all of this live from Razieli; the claude.ai version uses a copy taken 15 Oct 2026. Judgment columns show only with all products selected.</p>
  <p><b>Forecast accuracy.</b> Every forecast each lead submitted in Razieli since its history starts (2 Jun 2026), using the Forecast number they enter, not best case, against Razieli's closed ARR for the quarter. Region leads are grouped the way Razieli groups them, by the owner's reporting line. A submission whose Forecast is zero, equals its judgment, or is under half or over twice the lead's usual number for the quarter is treated as a typo and left out; the tab names any it leaves out.</p>
- <p><b>Aviv's forecast.</b> Q4 2026 only, over all deals. Open deals with an <code>ARR_Breakdown__c</code> row at 31 Dec 2026 whose <code>VP_Forecast__c</code> is Commit, Best Case, Pipeline, Next Q Commit or Next Q Best Case, read live from Salesforce. Closed is every Closed Won and Committed deal's ARR at 31 Dec 2026 (the full year, as Razieli counts it). Aviv's forecast is closed, plus the deals he has in Commit or Best Case at his amount, plus what he added. Shaka's forecast is closed, plus Shaka's Commit and Best Case at Salesforce ARR, plus Shaka's current Q4 judgment from Razieli. Aviv's inputs are saved in the forecast dashboard app, so everyone sees the same numbers, and only the people the dashboard owner lists can change them; the claude.ai version links to the app for this tab.</p>
+ <p><b>Aviv's forecast.</b> Q4 2026 only, over all deals. Open deals with an <code>ARR_Breakdown__c</code> row at 31 Dec 2026 whose <code>VP_Forecast__c</code> or <code>Region_Lead_Forecast__c</code> is Commit, Best Case, Pipeline, Next Q Commit or Next Q Best Case, read live from Salesforce. Closed is every Closed Won and Committed deal's ARR at 31 Dec 2026 (the full year, as Razieli counts it). Aviv's forecast is closed, plus the deals he has in Commit or Best Case at his amount, plus what he added. Shaka's forecast is closed, plus Shaka's Commit and Best Case at Salesforce ARR, plus Shaka's current Q4 judgment from Razieli. The region leads' forecast is closed, plus the deals each deal's region lead forecast has in Commit or Best Case at Salesforce ARR, plus Daniel's, Lidor's and Guy's current Q4 judgments from Razieli. Aviv's inputs are saved in the forecast dashboard app, so everyone sees the same numbers, and only the people the dashboard owner lists can change them; the claude.ai version links to the app for this tab.</p>
  <p>Calendar dots mark days the tab's lead updated their forecast, read from the #forecast-update Slack channel.</p>
  <p>Data loads live from Salesforce with your own access each time the page opens, and is cached for 5 minutes. Use Refresh for a fresh pull.</p>
 </footer>
@@ -1883,7 +1883,7 @@ async function loadSubmissions() {
 }
 
 /* ---------- Aviv's forecast (founder), Q4 2026 ---------- */
-// Open deals with ARR at 31 Dec 2026 that Shaka's VP forecast has in Commit, Best Case or Pipeline, with Aviv's own call and
+// Open deals with ARR at 31 Dec 2026 that Shaka's VP forecast or the region lead's forecast has in Commit, Best Case or Pipeline, with Aviv's own call and
 // amount on each (both default to Shaka's / Salesforce), plus amounts Aviv adds that aren't in Salesforce. Aviv's inputs live in
 // the artifact's database at aviv/Q4-2026 ({calls: {oppId: {cat, amt}}, adds: [{id, name, amt, note}]}), shared by every viewer;
 // a deal with no entry in `calls` follows Shaka, and `adds` missing means Shaka's judgment lines. The deal list itself is saved
@@ -1910,16 +1910,18 @@ const avState = () => { const d = AV.doc || {}; return {calls: d.calls || {}, ad
 const avRow = (d, st) => { const s = avShaka(d.vp), c = st.calls[d.id]; return {d, s, c, cat: (c && c.cat) || s, amt: c && c.amt != null ? c.amt : d.arr}; };
 
 async function avLoadLive() {
-  const sel = "SELECT Id, Opportunity__c, Product__r.Name, ARR_Dollar__c, Opportunity__r.Name, Opportunity__r.Type, Opportunity__r.StageName, Opportunity__r.VP_Forecast__c, Opportunity__r.Region__c, Opportunity__r.Owner.Name, Opportunity__r.Min_ARR_Date__c FROM ARR_Breakdown__c";
+  const sel = "SELECT Id, Opportunity__c, Product__r.Name, ARR_Dollar__c, Opportunity__r.Name, Opportunity__r.Account.Name, Opportunity__r.Type, Opportunity__r.StageName, Opportunity__r.VP_Forecast__c, Opportunity__r.Region_Lead_Forecast__c, Opportunity__r.Region__c, Opportunity__r.Owner.Name, Opportunity__r.Min_ARR_Date__c FROM ARR_Breakdown__c";
+  const fc = AV_FC.map(q).join(",");
   const [rows, agg] = await Promise.all([
-    soqlAll(sel, `ARR_End_Date__c = ${AV_QEND} AND Opportunity__r.VP_Forecast__c IN (${AV_FC.map(q).join(",")}) AND Opportunity__r.StageName NOT IN ('Closed Won','Committed','Closed Lost','Merged')`, 2000),
+    soqlAll(sel, `ARR_End_Date__c = ${AV_QEND} AND (Opportunity__r.VP_Forecast__c IN (${fc}) OR Opportunity__r.Region_Lead_Forecast__c IN (${fc})) AND Opportunity__r.StageName NOT IN ('Closed Won','Committed','Closed Lost','Merged')`, 2000),
     soql(`SELECT SUM(ARR_Dollar__c) a, COUNT_DISTINCT(Opportunity__c) n FROM ARR_Breakdown__c WHERE ARR_End_Date__c = ${AV_QEND} AND Opportunity__r.StageName IN (${WON.map(q).join(",")})`)
   ]);
   const m = new Map();
   rows.forEach(r => {
     const x = r.Opportunity__r || {};
     let d = m.get(r.Opportunity__c);
-    if (!d) m.set(r.Opportunity__c, d = {id: r.Opportunity__c, name: x.Name, type: x.Type, stage: x.StageName, vp: x.VP_Forecast__c, region: x.Region__c, owner: x.Owner && x.Owner.Name, mad: x.Min_ARR_Date__c, arr: 0});
+    if (!d) m.set(r.Opportunity__c, d = {id: r.Opportunity__c, name: x.Name, account: x.Account && x.Account.Name, type: x.Type, stage: x.StageName, vp: x.VP_Forecast__c,
+      rl: x.Region_Lead_Forecast__c, region: x.Region__c, owner: x.Owner && x.Owner.Name, mad: x.Min_ARR_Date__c, arr: 0});
     d.arr += Number(r.ARR_Dollar__c) || 0;
   });
   const a = agg[0] || {};
@@ -2015,16 +2017,19 @@ function avSaveNote() {
 }
 
 function avTotals() {
-  const st = avState(), o = {sh: {Commit: 0, "Best Case": 0}, av: {Commit: 0, "Best Case": 0}, n: {Commit: 0, "Best Case": 0}, changed: 0};
+  const st = avState(), o = {sh: {Commit: 0, "Best Case": 0}, rl: {Commit: 0, "Best Case": 0}, av: {Commit: 0, "Best Case": 0}, n: {Commit: 0, "Best Case": 0}, changed: 0};
   for (const d of AV.deals || []) {
-    const r = avRow(d, st);
+    const r = avRow(d, st), rl = avShaka(d.rl);
     if (AV_COUNTS(r.s)) o.sh[r.s] += d.arr;
+    if (AV_COUNTS(rl)) o.rl[rl] += d.arr;
     if (AV_COUNTS(r.cat)) { o.av[r.cat] += r.amt; o.n[r.cat]++; }
     if (r.c) o.changed++;
   }
   const J = avShakaJ();
   o.shJ = J ? J.val : 0; o.add = sum(st.adds, a => Number(a.amt) || 0); o.nAdd = st.adds.length;
   o.shT = AV.closed + o.sh.Commit + o.sh["Best Case"] + o.shJ;
+  o.rlJ = sum(["na", "emea", "apac"], k => { const s = rzSubAt(k, AV_PERIOD, Date.now()); return s ? s[2] : 0; });
+  o.rlT = AV.closed + o.rl.Commit + o.rl["Best Case"] + o.rlJ;
   o.avT = AV.closed + o.av.Commit + o.av["Best Case"] + o.add;
   return o;
 }
@@ -2036,18 +2041,19 @@ function avRenderSummary() {
   const parts = [["Closed won and committed", AV.closed, "--won", `${AV.closedN} deals`], ["Commit", t.av.Commit, "--commit", `${t.n.Commit} deals`],
     ["Best Case", t.av["Best Case"], "--bc", `${t.n["Best Case"]} deals`], ["Added by Aviv", t.add, "--judg", `${t.nAdd} line${t.nAdd === 1 ? "" : "s"}`]];
   const span = sum(parts, p => Math.max(0, p[1]));
-  const rows = [["Closed won and committed", AV.closed, AV.closed], ["Commit", t.sh.Commit, t.av.Commit], ["Best Case", t.sh["Best Case"], t.av["Best Case"]],
-    ["Shaka's judgment / added by Aviv", t.shJ, t.add]];
+  const rows = [["Closed won and committed", AV.closed, AV.closed, AV.closed], ["Commit", t.sh.Commit, t.av.Commit, t.rl.Commit], ["Best Case", t.sh["Best Case"], t.av["Best Case"], t.rl["Best Case"]],
+    ["Judgment / added by Aviv", t.shJ, t.add, t.rlJ]];
   el.innerHTML = `<div class="avtot"><div><div class="v">${fmt(t.avT)}</div><div class="l">Aviv's forecast</div></div>` +
     `<div><div class="v muted">${fmt(t.shT)}</div><div class="l">Shaka's forecast, incl. his judgment</div></div>` +
+    `<div><div class="v muted">${fmt(t.rlT)}</div><div class="l">Region leads' forecast, incl. their judgments</div></div>` +
     `<div><div class="v ${cls(d)}">${dl(d)}</div><div class="l">Aviv vs Shaka · ${t.changed ? `${t.changed} deal${t.changed === 1 ? "" : "s"} changed` : "no deals changed"}</div></div></div>` +
     `<div class="bar" role="img" aria-label="${esc(parts.map(p => `${p[0]} ${full(p[1])}`).join(", "))}">` +
     parts.map(p => `<div style="width:${span ? Math.max(0, p[1]) / span * 100 : 0}%;background:var(${p[2]})" title="${esc(p[0])}: ${full(p[1])}"></div>`).join("") + `</div>` +
     `<div class="legend" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">` +
     parts.map(p => `<div style="border-color:var(${p[2]})"><div class="v">${fmt(p[1])}</div><div class="l">${esc(p[0])}, ${esc(p[3])}</div></div>`).join("") + `</div>` +
-    `<div class="scroll avcmp"><table><thead><tr><th></th><th class="n">Shaka</th><th class="n">Aviv</th><th class="n">Difference</th></tr></thead><tbody>` +
-    rows.map(r => `<tr><td>${esc(r[0])}</td><td class="n">${fmt(r[1])}</td><td class="n">${fmt(r[2])}</td><td class="n ${cls(r[2] - r[1])}">${dl(r[2] - r[1])}</td></tr>`).join("") +
-    `<tr class="tot"><td>Forecast</td><td class="n">${fmt(t.shT)}</td><td class="n">${fmt(t.avT)}</td><td class="n ${cls(d)}">${dl(d)}</td></tr></tbody></table></div>`;
+    `<div class="scroll avcmp"><table><thead><tr><th></th><th class="n">Shaka</th><th class="n">Region leads</th><th class="n">Aviv</th><th class="n">Aviv vs Shaka</th></tr></thead><tbody>` +
+    rows.map(r => `<tr><td>${esc(r[0])}</td><td class="n">${fmt(r[1])}</td><td class="n">${fmt(r[3])}</td><td class="n">${fmt(r[2])}</td><td class="n ${cls(r[2] - r[1])}">${dl(r[2] - r[1])}</td></tr>`).join("") +
+    `<tr class="tot"><td>Forecast</td><td class="n">${fmt(t.shT)}</td><td class="n">${fmt(t.rlT)}</td><td class="n">${fmt(t.avT)}</td><td class="n ${cls(d)}">${dl(d)}</td></tr></tbody></table></div>`;
   const tot = $("avAddTot"); if (tot) tot.textContent = full(t.add);
 }
 function avRenderAdds() {
@@ -2064,7 +2070,7 @@ function avRenderAdds() {
 function avRowHtml(r) {
   const d = r.d, dis = avLocked() ? " disabled" : "";
   return `<tr data-id="${esc(d.id)}"${r.c ? ' class="chg"' : ""}><td><a href="${SF_URL(d.id)}" target="_blank" rel="noopener">${esc(d.name)}</a><br><span class="chip">${esc(d.type || "")}</span> <span class="chip">${esc(d.region || "")}</span></td>` +
-    `<td>${esc(d.owner || "")}</td><td>${esc(d.stage || "")}<br><span class="muted">Min ARR ${md(d.mad)}</span></td><td>${esc(d.vp || "")}</td>` +
+    `<td>${esc(d.account || "")}</td><td>${esc(d.owner || "")}</td><td>${esc(d.stage || "")}<br><span class="muted">Min ARR ${md(d.mad)}</span></td><td>${esc(d.vp || "")}</td><td>${esc(d.rl || "")}</td>` +
     `<td><select id="avc-${esc(d.id)}" aria-label="Aviv's call on ${esc(d.name)}"${dis}>${AV_CATS.map(c => `<option${c === r.cat ? " selected" : ""}>${c}</option>`).join("")}</select></td>` +
     `<td class="n">${full(d.arr)}</td>` +
     `<td class="n"><input class="amt" id="ava-${esc(d.id)}" inputmode="decimal" placeholder="${esc(avNum(d.arr))}" value="${r.c && r.c.amt != null ? esc(avNum(r.c.amt)) : ""}" aria-label="Aviv's amount for ${esc(d.name)}"${dis}></td>` +
@@ -2073,7 +2079,7 @@ function avRowHtml(r) {
 function avFootHtml() {
   const st = avState(), ids = new Set([...document.querySelectorAll("#avTable tbody tr[data-id]")].map(tr => tr.dataset.id));
   const rs = (AV.deals || []).filter(d => ids.has(d.id)).map(d => avRow(d, st));
-  return `<tr class="tot"><td colspan="5">${rs.length} deals</td><td class="n">${full(sum(rs, r => r.d.arr))}</td><td></td><td class="n">${full(sum(rs.filter(r => AV_COUNTS(r.cat)), r => r.amt))}</td></tr>`;
+  return `<tr class="tot"><td colspan="7">${rs.length} deals</td><td class="n">${full(sum(rs, r => r.d.arr))}</td><td></td><td class="n">${full(sum(rs.filter(r => AV_COUNTS(r.cat)), r => r.amt))}</td></tr>`;
 }
 function avRenderTable() {
   const st = avState(), q = AV.q.trim().toLowerCase(), all = (AV.deals || []).map(d => avRow(d, st));
@@ -2081,11 +2087,11 @@ function avRenderTable() {
   AV_CATS.forEach(c => n[c] = all.filter(r => r.cat === c).length);
   const opts = [["all", "All"], ["Commit", "Commit"], ["Best Case", "Best Case"], ["Pipeline", "Pipeline"], ["chg", "Changed by Aviv"]];
   $("avFilt").innerHTML = opts.map(([k, l]) => `<button type="button" data-f="${k}" aria-pressed="${AV.filter === k}">${l} <span class="muted">${n[k]}</span></button>`).join("");
-  const rows = all.filter(r => (AV.filter === "all" || (AV.filter === "chg" ? !!r.c : r.cat === AV.filter)) && (!q || `${r.d.name} ${r.d.owner} ${r.d.region}`.toLowerCase().includes(q)))
+  const rows = all.filter(r => (AV.filter === "all" || (AV.filter === "chg" ? !!r.c : r.cat === AV.filter)) && (!q || `${r.d.name} ${r.d.account || ""} ${r.d.owner} ${r.d.region}`.toLowerCase().includes(q)))
     .sort((a, b) => b.d.arr - a.d.arr);
   $("avDealsTitle").textContent = `Open deals (${all.length})`;
-  $("avTable").innerHTML = `<thead><tr><th>Deal</th><th>Owner</th><th>Stage</th><th>Shaka</th><th>Aviv's call</th><th class="n">ARR in Salesforce</th><th class="n">Aviv's amount</th><th class="n">In Aviv's forecast</th></tr></thead>` +
-    `<tbody>${rows.length ? rows.map(avRowHtml).join("") : `<tr><td colspan="8" class="muted">No deals match.</td></tr>`}</tbody><tfoot></tfoot>`;
+  $("avTable").innerHTML = `<thead><tr><th>Deal</th><th>Account</th><th>Owner</th><th>Stage</th><th>Shaka</th><th>Region lead</th><th>Aviv's call</th><th class="n">ARR in Salesforce</th><th class="n">Aviv's amount</th><th class="n">In Aviv's forecast</th></tr></thead>` +
+    `<tbody>${rows.length ? rows.map(avRowHtml).join("") : `<tr><td colspan="10" class="muted">No deals match.</td></tr>`}</tbody><tfoot></tfoot>`;
   $("avTable").querySelector("tfoot").innerHTML = avFootHtml();
 }
 function avRender() {

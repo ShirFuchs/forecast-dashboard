@@ -9,7 +9,7 @@ $g = Join-Path $env:LOCALAPPDATA "Google\Cloud SDK\google-cloud-sdk\bin\gcloud.c
 $p = "revenue-operations-475018"; $r = "europe-west1"; $svc = "forecast-dashboard"
 $sa = "forecast-dashboard@$p.iam.gserviceaccount.com"
 $iapAgent = "service-1000251352147@gcp-sa-iap.iam.gserviceaccount.com"
-# who may change Aviv's forecast inputs in the app (everyone else at wsc-sports.com can view them)
+# who may change Aviv's forecast inputs in the app (everyone else at wsc-sports.com can view them); "*" lets anyone at WSC edit
 $avivEditors = @("shir.fuchs@wsc-sports.com", "aviv@wsc-sports.com")
 function Run { & $g @args; if ($LASTEXITCODE) { throw "failed: gcloud $($args -join ' ')" } }
 
