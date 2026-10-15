@@ -282,15 +282,15 @@ tr.cur td{font-weight:700}
  <div id="avSummary"></div>
 </section>
 <section>
- <div class="acchead"><h2>Added by Aviv</h2><button type="button" class="btn" id="avAddBtn">Add an amount</button></div>
- <p class="note">Deals or amounts that aren't in Salesforce. Each counts in Aviv's forecast as entered (use a minus sign to take an amount off). The list starts with Shaka's judgment lines, because they are part of Shaka's forecast; edit or remove them.</p>
- <div id="avAdds"></div>
-</section>
-<section>
  <div class="acchead"><h2 id="avDealsTitle">Open deals</h2>
   <div class="avfilters"><input type="search" id="avSearch" placeholder="Search deal, owner or region" aria-label="Search deals"><div class="seg" id="avFilt" role="group" aria-label="Show"></div></div></div>
  <p class="note">Open deals with ARR at 31 Dec 2026 that Shaka's VP forecast has in Commit, Best Case or Pipeline (Next Q Commit and Next Q Best Case start in Commit and Best Case, as in Razieli). Aviv's call starts as Shaka's. Change it, or type an amount (such as 250k or 1.2M) to replace the Salesforce ARR; clear the amount to go back to Salesforce. Commit and Best Case count in Aviv's forecast, Pipeline doesn't. Rows Aviv changed are marked in purple.</p>
  <div class="scroll"><table id="avTable"></table></div>
+</section>
+<section>
+ <div class="acchead"><h2>Added by Aviv</h2><button type="button" class="btn" id="avAddBtn">Add an amount</button></div>
+ <p class="note">Deals or amounts that aren't in Salesforce. Each counts in Aviv's forecast as entered (use a minus sign to take an amount off). The list starts with Shaka's judgment lines, because they are part of Shaka's forecast; edit or remove them.</p>
+ <div id="avAdds"></div>
 </section>
 </div>
 
@@ -314,7 +314,7 @@ tr.cur td{font-weight:700}
 </div>
 
 <footer>
- <p id="appFoot" hidden><b>This app.</b> Salesforce is read with the dashboard owner's Salesforce login (only the dashboard's own queries), Razieli live with the dashboard's Razieli access, and Razieli's saved submission snapshots in Snowflake with your own Snowflake sign-in. Where the notes below mention claude.ai connectors or Slack, the app uses these instead, and the calendar's forecast days come from Razieli. Aviv's forecast is only in the claude.ai version, where his inputs are saved.</p>
+ <p id="appFoot" hidden><b>This app.</b> Salesforce is read with the dashboard owner's Salesforce login (only the dashboard's own queries), Razieli live with the dashboard's Razieli access, and Razieli's saved submission snapshots in Snowflake with your own Snowflake sign-in. Where the notes below mention claude.ai connectors or Slack, the app uses these instead, and the calendar's forecast days come from Razieli. Aviv's forecast keeps his inputs in the app's own storage, separate from the claude.ai version's, and only the people the dashboard owner lists can change them.</p>
  <p><b>Company and region tabs.</b> Company is Shaka's (Shachar Arnon, VP) forecast over all deals, using the VP forecast column. North America (Daniel Pesce), EMEA (Lidor Oz) and APAC (Guy Port) are each region lead's forecast, using the Region Lead Forecast column, over the deals whose account region is North America or LATAM, EMEA or ROW, and APAC. That region split is an approximation: Razieli groups deals by the owner's reporting line, which can put a few deals under a different region lead. Each tab keeps its own compare dates and its own Forecast weekly snapshot or Pipeline status choice.</p>
  <p><b>How this is built.</b> For the selected period the dashboard takes every <code>ARR_Breakdown__c</code> row whose ARR Period (<code>ARR_End_Date__c</code>) is the last day of that quarter, and sums its ARR $ (Potential) (<code>ARR_Dollar__c</code>) by product. Periods are year-to-date, so Q3 uses 30 Sep and Q4 uses 31 Dec. Only the conditions come from the opportunity: won means stage Closed Won or Committed; forecast means the tab's forecast column (<code>VP_Forecast__c</code> or <code>Region_Lead_Forecast__c</code>) is Best Case, Commit, Next Q Best Case or Next Q Commit on an open deal. In Pipeline status, Next Q Best Case and Next Q Commit deals belong to the quarter after their Min ARR quarter, so they count only once the selected period reaches that quarter.</p>
  <p>The start and end positions are rebuilt from Salesforce field history on the forecast column, Stage, Min ARR Date and Min ARR Period Amount ($). ARR Breakdown keeps no history, but its rows are built from Bookings, which do: when any of a deal's bookings changed after the earlier moment (ARR start or end date, ARR base amount, or which deal it belongs to), the deal's quarter-end ARR then is rebuilt from its bookings as they stood, a booking counting when its ARR period covered the quarter's last month. Otherwise a deal's value is its ARR row scaled by how its Min ARR amount has changed since. Deleted bookings leave no history and can't be rebuilt. A deal that has a row today but whose Min ARR date was after the quarter end on the earlier date counts as pulled into the period. A deal that no longer has a row (Min ARR date moved past the quarter end, or closed lost, which removes the rows) is valued from its first ARR period, or for closed lost from its opportunity products. Field history goes back 18 months.</p>
@@ -1306,7 +1306,7 @@ function setView(key) {
   if (needsReload()) load(false); else render();
 }
 function setTab(tab) {
-  S.tab = ["fc", "pipe", "acc", "aviv"].includes(tab) && !(tab === "aviv" && S.app) ? tab : "pipe"; store.set("tab:" + V().key, S.tab);
+  S.tab = ["fc", "pipe", "acc", "aviv"].includes(tab) ? tab : "pipe"; store.set("tab:" + V().key, S.tab);
   document.body.dataset.tab = S.tab;
   for (const [t, panel, btn] of [["pipe", "tabPipe", "tabBtnPipe"], ["fc", "tabFc", "tabBtnFc"], ["acc", "tabAcc", "tabBtnAcc"], ["aviv", "tabAviv", "tabBtnAviv"]]) {
     $(panel).hidden = S.tab !== t; $(btn).setAttribute("aria-selected", String(S.tab === t));
@@ -2098,7 +2098,7 @@ function avRender() {
   $("avNote").textContent = `What Aviv, the founder, expects Q4 2026 to close at, next to Shaka's forecast. Everything closed, plus the open deals Aviv has in Commit or Best Case, plus what he added. ` +
     (AV.src === "live" ? `Deals live from Salesforce, loaded ${fmtStamp(AV.at)}.` : `Deals as of ${fmtStamp(AV.at)}, from the copy saved when the dashboard owner or an editor last opened this tab (you don't have the Salesforce connector).`) +
     ` ARR is each deal's ARR $ (Potential) at 31 Dec 2026. Shaka's judgment is ${rzSource(false)}.` +
-    (ro ? " You can view this tab but not change it: Contributor access or above is needed to edit." : "");
+    (ro ? (S.app ? " You can view this tab but not change it; the dashboard owner decides who can." : " You can view this tab but not change it: Contributor access or above is needed to edit.") : "");
   avRenderSummary(); avRenderAdds(); avRenderTable();
   AV.dirtyRemote = false;
 }
@@ -2192,7 +2192,7 @@ function init() {
   S.app = !!window.FD_APP;
   // the app starts empty and reads Razieli live; the artifact uses its copy
   setRazieli(S.app ? {asOf: new Date().toISOString(), live: true, loading: true, notes: [], leads: {}, closed: {}, current: {}} : RAZIELI);
-  $("appFoot").hidden = !S.app; $("tabBtnAviv").hidden = S.app;
+  $("appFoot").hidden = !S.app;
   const ps = $("period");
   ps.innerHTML = PERIODS.map(p => `<option value="${p.id}">${p.label}</option>`).join("");
   ps.value = periodById(store.get("period", "Q4-2026")).id;
@@ -2237,3 +2237,4 @@ init();
 
 </script>
 </body></html>
+

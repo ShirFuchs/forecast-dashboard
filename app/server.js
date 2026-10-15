@@ -31,6 +31,9 @@ const SNOW = {
   role: ENV.SNOWFLAKE_ROLE ?? "WSC_BA_VIEWER", warehouse: ENV.SNOWFLAKE_WAREHOUSE ?? "WSC_MCP_WH"
 };
 const RZ = {url: ENV.RAZIELI_URL || "https://app.wscast.com/api/mcp", tokenSecret: ENV.RAZIELI_TOKEN_SECRET || "RAZIELI_TOKEN"};
+// Documents the page keeps (Aviv's inputs), in a Cloud Storage bucket; only these people may change them
+const STORE = {bucket: ENV.STORE_BUCKET || "revenue-operations-475018-forecast-dashboard",
+  editors: new Set((ENV.AVIV_EDITORS || "").toLowerCase().split(/[;,\s]+/).filter(Boolean))};
 const SESSION_SECRET = ENV.SESSION_KEY_SECRET || "forecast-dashboard-session-key";
 
 const log = (severity, message, extra) => console.log(JSON.stringify({severity, message, ...extra}));
@@ -202,7 +205,15 @@ function checkSoql(q) {
   const obj = Object.keys(SOQL_ALLOW).find(k => k.toLowerCase() === m[2].toLowerCase());
   if (!obj) return {why: `object ${m[2]} not allowed`};
   const allowed = SOQL_ALLOW[obj], where = m[3] || "";
-  for (const f of m[1].split(",").map(x => x.trim())) if (!allowed.has(f.toLowerCase())) return {why: `field ${f} not allowed on ${obj}`};
+  // plain fields, or (for one summary row, as Aviv's tab asks for closed ARR) aggregates of them with an alias
+  let aggregates = 0;
+  const cols = m[1].split(",").map(x => x.trim());
+  for (const f of cols) {
+    const a = /^(?:SUM|COUNT|COUNT_DISTINCT|MIN|MAX)\(([A-Za-z_][A-Za-z0-9_.]*)\)(?: [A-Za-z_][A-Za-z0-9_]*)?$/i.exec(f);
+    if (a ? !allowed.has(a[1].toLowerCase()) : !allowed.has(f.toLowerCase())) return {why: `field ${f} not allowed on ${obj}`};
+    if (a) aggregates++;
+  }
+  if (aggregates && (aggregates !== cols.length || m[4])) return {why: "aggregates can't be mixed with fields or ordered"};
   if (m[4] && !allowed.has(m[4].toLowerCase())) return {why: `ORDER BY ${m[4]} not allowed on ${obj}`};
   // only fields, quoted literals, dates, numbers, comparison operators, AND/OR/NOT and IN lists: no subqueries or functions
   const w = where.replace(STR, "''").replace(/\b\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2}))?\b/g, "0");
@@ -211,9 +222,9 @@ function checkSoql(q) {
     if (SOQL_WORDS.has(id.toUpperCase())) continue;
     if (!allowed.has(id.toLowerCase())) return {why: `filter on ${id} not allowed on ${obj}`};
   }
-  // bounded: a LIMIT of at most 2000 (the page pages by Id), or a list of at most 200 Ids
+  // bounded: a single summary row, a LIMIT of at most 2000 (the page pages by Id), or a list of at most 200 Ids
   const lim = Number(m[5] || 0);
-  if (!(lim > 0 && lim <= 2000) && !/^Id IN \((?:'[A-Za-z0-9]{15,18}', ?){0,199}'[A-Za-z0-9]{15,18}'\)$/i.test(where)) return {why: "query needs LIMIT 2000 or less, or at most 200 Ids"};
+  if (!aggregates && !(lim > 0 && lim <= 2000) && !/^Id IN \((?:'[A-Za-z0-9]{15,18}', ?){0,199}'[A-Za-z0-9]{15,18}'\)$/i.test(where)) return {why: "query needs LIMIT 2000 or less, or at most 200 Ids"};
   const hf = HISTORY_FIELDS[obj];
   if (hf) {
     // exactly one Field = / Field IN filter, ANDed with the rest, naming only the fields above
@@ -456,6 +467,38 @@ async function razieliData(refresh) {
   return rzCache.p;
 }
 
+/* ---------- stored documents (Aviv's inputs) ---------- */
+// The page's documents, by path, as objects in the bucket; each is checked into a fixed shape before it's saved
+const DOCS = {
+  "aviv/Q4-2026": d => {
+    const calls = {}, adds = [], num = v => Number.isFinite(Number(v)) ? Math.round(Number(v)) : null;
+    for (const [id, c] of Object.entries((d && d.calls) || {}).slice(0, 5000)) {
+      if (/^006[A-Za-z0-9]{12}(?:[A-Za-z0-9]{3})?$/.test(id) && c && ["Commit", "Best Case", "Pipeline"].includes(c.cat)) calls[id] = {cat: c.cat, amt: c.amt == null ? null : num(c.amt)};
+    }
+    for (const a of (Array.isArray(d && d.adds) ? d.adds : []).slice(0, 300)) {
+      if (a && typeof a === "object") adds.push({id: String(a.id || "").slice(0, 40), name: String(a.name || "").slice(0, 300), amt: num(a.amt) || 0, note: String(a.note || "").slice(0, 300)});
+    }
+    return {calls, adds};
+  }
+};
+const docObject = p => `docs/${p}.json`;
+async function storeFetch(url, init = {}) {
+  const r = await fetch(url, {...init, headers: {Authorization: "Bearer " + await gcpToken(), ...(init.headers || {})}}).catch(() => { throw unavailable("The app's storage"); });
+  if (r.status >= 500 || r.status === 429) throw unavailable("The app's storage");
+  return r;
+}
+async function docGet(p) {
+  const r = await storeFetch(`https://storage.googleapis.com/storage/v1/b/${STORE.bucket}/o/${encodeURIComponent(docObject(p))}?alt=media`);
+  if (r.status === 404) return {exists: false};
+  if (!r.ok) throw httpError(500, "not_configured", `The app can't read its storage (HTTP ${r.status}).`);
+  return {exists: true, data: await r.json()};
+}
+async function docSet(p, data) {
+  const r = await storeFetch(`https://storage.googleapis.com/upload/storage/v1/b/${STORE.bucket}/o?uploadType=media&name=${encodeURIComponent(docObject(p))}`,
+    {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(data)});
+  if (!r.ok) throw httpError(500, "not_configured", `The app can't save to its storage (HTTP ${r.status}).`);
+}
+
 /* ---------- routes ---------- */
 async function handle(req, res) {
   const url = new URL(req.url, "http://localhost"), m = req.method, p = url.pathname;
@@ -479,7 +522,13 @@ async function handle(req, res) {
   }
   if (m === "GET" && p === "/api/session") {
     const app = await snowApp().catch(() => null), s = app ? await snowRead(req, who) : null;
-    return send(res, 200, {email: who.email, snowflake: {configured: !!app, connected: !!s, user: s ? s.user : null, until: s ? s.rtExp : null}});
+    return send(res, 200, {email: who.email, snowflake: {configured: !!app, connected: !!s, user: s ? s.user : null, until: s ? s.rtExp : null},
+      canEditDocs: STORE.editors.has(who.email)});
+  }
+  if (m === "GET" && p === "/api/doc") {
+    const path = url.searchParams.get("path") || "";
+    if (!DOCS[path]) return fail(res, 404, "not_found", "No such document.");
+    return send(res, 200, await docGet(path));
   }
 
   if (m === "POST" && p.startsWith("/api/")) {
@@ -508,6 +557,15 @@ async function handle(req, res) {
       }
     }
     if (p === "/api/razieli") return send(res, 200, await razieliData(!!body.refresh));
+    if (p === "/api/doc") {
+      const clean = DOCS[body.path];
+      if (!clean) return fail(res, 404, "not_found", "No such document.");
+      if (!STORE.editors.has(who.email)) return fail(res, 403, "invalid_argument", "You can view this but not change it.");
+      const data = {...clean(body.data), updatedAt: Date.now(), updatedBy: who.email};
+      await docSet(body.path, data);
+      log("NOTICE", "document saved", {path: body.path, email: who.email});
+      return send(res, 200, {ok: true, data});
+    }
     if (p === "/api/snowflake/disconnect") return send(res, 200, {ok: true}, {"Set-Cookie": SNOW_LOGOUT});
     return fail(res, 404, "not_found", "No such API.");
   }

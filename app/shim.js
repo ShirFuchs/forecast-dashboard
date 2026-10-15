@@ -46,10 +46,48 @@
       setTimeout(() => URL.revokeObjectURL(url), 10000);
     }
   };
+  let sessionP = null;
+  const session = () => sessionP || (sessionP = api("/api/session").catch(e => { sessionP = null; throw e; }));
+  // The page's storage: the app keeps only Aviv's inputs (aviv/Q4-2026), on its server. Everything else the claude.ai version
+  // stores (the shared copy for viewers without connectors) isn't needed here, so it reads as missing and can't be written.
+  const DOCS = ["aviv/Q4-2026"];
+  const snap = j => ({exists: !!j.exists, data: () => j.data});
+  const db = {
+    doc(path) {
+      const ours = DOCS.includes(path);
+      const get = async () => ours ? snap(await api("/api/doc?path=" + encodeURIComponent(path))) : snap({exists: false});
+      return {
+        get,
+        async set(data) {
+          if (!ours) throw {code: "invalid_argument", message: "Not stored in the app."};
+          await api("/api/doc", {path, data});
+        },
+        async delete() { throw {code: "invalid_argument", message: "Not stored in the app."}; },
+        // other viewers' changes show up within half a minute
+        onSnapshot(next, error) {
+          let stop = false, timer = null;
+          const tick = async () => {
+            if (stop) return;
+            try { if (!document.hidden) next(await get()); } catch (e) { if (error) error(e); }
+            if (!stop) timer = setTimeout(tick, 30000);
+          };
+          timer = setTimeout(tick, 0);
+          return () => { stop = true; clearTimeout(timer); };
+        }
+      };
+    }
+  };
+  // who is viewing: never the claude.ai owner or an editor (so no shared-copy controls), but may change Aviv's inputs when listed
+  const user = {
+    isOwner: () => false,
+    canEdit: () => false,
+    can: async perm => perm === "data.write" && !!(await session()).canEditDocs,
+    id: async () => (await session()).email
+  };
   window.FD_APP = {
     razieli: refresh => api("/api/razieli", {refresh: !!refresh}),
-    session: () => api("/api/session"),
+    session,
     disconnectSnowflake: () => api("/api/snowflake/disconnect", {})
   };
-  window.claude = {use: async name => name === "mcp" ? mcp : name === "downloads" ? downloads : null};
+  window.claude = {use: async name => ({mcp, downloads, db, user})[name] || null};
 })();

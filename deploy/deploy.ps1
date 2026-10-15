@@ -9,6 +9,8 @@ $g = Join-Path $env:LOCALAPPDATA "Google\Cloud SDK\google-cloud-sdk\bin\gcloud.c
 $p = "revenue-operations-475018"; $r = "europe-west1"; $svc = "forecast-dashboard"
 $sa = "forecast-dashboard@$p.iam.gserviceaccount.com"
 $iapAgent = "service-1000251352147@gcp-sa-iap.iam.gserviceaccount.com"
+# who may change Aviv's forecast inputs in the app (everyone else at wsc-sports.com can view them)
+$avivEditors = @("shir.fuchs@wsc-sports.com")
 function Run { & $g @args; if ($LASTEXITCODE) { throw "failed: gcloud $($args -join ' ')" } }
 
 Set-Location (Split-Path $PSScriptRoot -Parent)
@@ -22,7 +24,7 @@ $sfVars = "SF_CLIENT_ID=$($sfEnv.SF_CLIENT_ID),SF_USERNAME=$($sfEnv.SF_USERNAME)
 # 1. build from source (Dockerfile; .gcloudignore keeps everything but the app out of the upload) and deploy
 Run run deploy $svc --source . --project $p --region $r --service-account $sa `
   --no-allow-unauthenticated --ingress all --memory 1Gi --cpu 1 --timeout 300 --max-instances 4 `
-  --update-env-vars "$sfVars,IAP_AUDIENCE=/projects/1000251352147/locations/$r/services/$svc"
+  --update-env-vars "$sfVars,IAP_AUDIENCE=/projects/1000251352147/locations/$r/services/$svc,AVIV_EDITORS=$($avivEditors -join ';')"
 
 # 2. Google sign-in in front (Cloud Run's built-in IAP), as for vertical-planning: only IAP may call the service,
 #    and anyone with a @wsc-sports.com Google account may pass IAP

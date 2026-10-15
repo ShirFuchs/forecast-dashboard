@@ -9,6 +9,7 @@
 #     (generated here and sent straight to Secret Manager; it is never printed)
 #   - secrets snowflake-oauth-client-id / snowflake-oauth-client-secret holding "PENDING" until the data team adds the
 #     Snowflake app's id and secret as new versions
+#   - a private storage bucket for Aviv's forecast inputs, usable only by that service account
 #   - the IAP service agent (needed for Google sign-in in front of Cloud Run; already exists if other dashboards use IAP)
 
 # gcloud reports progress on stderr, which Windows PowerShell would turn into errors under "Stop"; failures are caught by exit code
@@ -40,6 +41,14 @@ New-Secret "snowflake-oauth-client-secret" "PENDING"
 foreach ($s in "RAZIELI_TOKEN", "sf-jwt-key", "forecast-dashboard-session-key", "snowflake-oauth-client-id", "snowflake-oauth-client-secret") {
   Run secrets add-iam-policy-binding $s --project $p --member "serviceAccount:$sa" --role roles/secretmanager.secretAccessor --format "value(etag)"
 }
+
+# Storage for the page's own documents (Aviv's inputs): a private bucket that only the app's service account can use, with
+# old versions kept so a mistaken change can be undone
+$bucket = "gs://revenue-operations-475018-forecast-dashboard"
+if (Exists storage buckets describe $bucket --project $p) { Write-Host "bucket already exists" }
+else { Run storage buckets create $bucket --project $p --location europe-west1 --uniform-bucket-level-access --public-access-prevention }
+Run storage buckets update $bucket --project $p --versioning
+Run storage buckets add-iam-policy-binding $bucket --project $p --member "serviceAccount:$sa" --role roles/storage.objectUser --format "value(etag)"
 
 Run beta services identity create --service=iap.googleapis.com --project $p
 Write-Host "`nSetup done. Next: powershell -ExecutionPolicy Bypass -File deploy\deploy.ps1"
