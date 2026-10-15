@@ -10,7 +10,7 @@ $p = "revenue-operations-475018"; $r = "europe-west1"; $svc = "forecast-dashboar
 $sa = "forecast-dashboard@$p.iam.gserviceaccount.com"
 $iapAgent = "service-1000251352147@gcp-sa-iap.iam.gserviceaccount.com"
 # who may change Aviv's forecast inputs in the app (everyone else at wsc-sports.com can view them)
-$avivEditors = @("shir.fuchs@wsc-sports.com")
+$avivEditors = @("shir.fuchs@wsc-sports.com", "aviv@wsc-sports.com")
 function Run { & $g @args; if ($LASTEXITCODE) { throw "failed: gcloud $($args -join ' ')" } }
 
 Set-Location (Split-Path $PSScriptRoot -Parent)
