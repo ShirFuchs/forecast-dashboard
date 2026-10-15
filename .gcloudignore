@@ -1,0 +1,7 @@
+# Only what the Dockerfile copies goes to Cloud Build
+*
+!Dockerfile
+!index.html
+!app/
+!app/server.js
+!app/shim.js

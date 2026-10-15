@@ -187,6 +187,7 @@ tr.cur td{font-weight:700}
 </div>
 <div class="status" id="status"></div>
 <div id="banner"></div>
+<div id="appBar"></div>
 
 <div class="tabs" role="tablist" aria-label="View">
  <button type="button" role="tab" id="tabBtnFc" data-tab="fc" aria-controls="tabFc">Forecast weekly snapshot</button>
@@ -272,13 +273,14 @@ tr.cur td{font-weight:700}
 </div>
 
 <footer>
+ <p id="appFoot" hidden><b>This app.</b> Salesforce is read with the dashboard owner's Salesforce login (only the dashboard's own queries), Razieli live with the dashboard's Razieli access, and Razieli's saved submission snapshots in Snowflake with your own Snowflake sign-in. Where the notes below mention claude.ai connectors or Slack, the app uses these instead, and the calendar's forecast days come from Razieli.</p>
  <p><b>Company and region tabs.</b> Company is Shaka's (Shachar Arnon, VP) forecast over all deals, using the VP forecast column. North America (Daniel Pesce), EMEA (Lidor Oz) and APAC (Guy Port) are each region lead's forecast, using the Region Lead Forecast column, over the deals whose account region is North America or LATAM, EMEA or ROW, and APAC. That region split is an approximation: Razieli groups deals by the owner's reporting line, which can put a few deals under a different region lead. Each tab keeps its own compare dates and its own Forecast weekly snapshot or Pipeline status choice.</p>
  <p><b>How this is built.</b> For the selected period the dashboard takes every <code>ARR_Breakdown__c</code> row whose ARR Period (<code>ARR_End_Date__c</code>) is the last day of that quarter, and sums its ARR $ (Potential) (<code>ARR_Dollar__c</code>) by product. Periods are year-to-date, so Q3 uses 30 Sep and Q4 uses 31 Dec. Only the conditions come from the opportunity: won means stage Closed Won or Committed; forecast means the tab's forecast column (<code>VP_Forecast__c</code> or <code>Region_Lead_Forecast__c</code>) is Best Case, Commit, Next Q Best Case or Next Q Commit on an open deal. In Pipeline status, Next Q Best Case and Next Q Commit deals belong to the quarter after their Min ARR quarter, so they count only once the selected period reaches that quarter.</p>
  <p>The start and end positions are rebuilt from Salesforce field history on the forecast column, Stage, Min ARR Date and Min ARR Period Amount ($). ARR Breakdown keeps no history, but its rows are built from Bookings, which do: when any of a deal's bookings changed after the earlier moment (ARR start or end date, ARR base amount, or which deal it belongs to), the deal's quarter-end ARR then is rebuilt from its bookings as they stood, a booking counting when its ARR period covered the quarter's last month. Otherwise a deal's value is its ARR row scaled by how its Min ARR amount has changed since. Deleted bookings leave no history and can't be rebuilt. A deal that has a row today but whose Min ARR date was after the quarter end on the earlier date counts as pulled into the period. A deal that no longer has a row (Min ARR date moved past the quarter end, or closed lost, which removes the rows) is valued from its first ARR period, or for closed lost from its opportunity products. Field history goes back 18 months.</p>
  <p><b>Saved submissions.</b> Razieli saves every forecast submission's ARR waterfall rows to Snowflake (<code>REVOPS_ARR_WATERFALL_PRODUCTS_BINARY_SNAPSHOT</code> for the VP, <code>REVOPS_ARR_WATERFALL_PRODUCTS_BINARY_REGION_LEAD_SNAPSHOT</code> for region leads). Forecast weekly snapshot and its waterfall read the tab's lead's submissions from there, through your Snowflake connector, so a forecast shows exactly the deals, stages, forecast category and ARR they submitted, with later edits and deleted bookings having no effect. Next Q Commit and Next Q Best Case deals with ARR at the quarter end count in their pillar, as in Razieli. A submission Snowflake doesn't have, or a viewer without Snowflake, gets the rebuild from Salesforce history described below, and the page says so.</p>
  <p><b>Two views, both tied to the compare end date.</b> The waterfall and What changed follow the open tab: in Pipeline status they compare deal status at the start of the start date with the end of the end date; in Forecast weekly snapshot they compare the lead's latest submission on or before each date, with their judgment at each end when Razieli still has it. Pipeline status shows every deal's status at the end of the end date (right now when it is today). Forecast weekly snapshot shows the lead's last submission for the selected quarter on or before the end date (the saved snapshot, or where there is none the time of their latest #forecast-update post or Razieli's submit time, with each deal rebuilt from history as of that moment), plus the judgment that went with it when Razieli still has it.</p>
- <p>Judgment is the number the lead enters in Razieli on top of closed, Commit and Best Case, copied from Razieli on 14 Oct 2026, not read live (the page shows the copy date next to the judgment). Region leads: Daniel Pesce +$1.0M for Q4 2026 (resubmitted 12 Oct), +$200K for Q3 2026 and +$1.0M for Q1 2027 (12 Oct); Lidor Oz +$700K for Q4 2026 (13 Oct, previously +$500K on 27 Sep); Guy Port none. Their notes keep no previous judgment, so the previous values come from our own earlier copy. Shaka: Q4 2026 is +$3.35M (submitted 6 Oct 2026) and was +$2.35M before that (submitted 29 Sep 2026, dates from #forecast-update); Q1–Q3 2026 and all of 2027 have none. Razieli keeps only the current and previous judgment, so a date before 29 Sep has no judgment: a range starting before it shows only the end date's judgment, with no change, and a range ending before it shows none. A range that starts on or after 29 Sep and ends on or after 6 Oct shows the previous judgment and the change separately. Judgment columns show only with all products selected.</p>
- <p><b>Forecast accuracy.</b> Every forecast each lead submitted in Razieli since its history starts (2 Jun 2026), using the Forecast number they enter, not best case, against Razieli's closed ARR for the quarter. It is a copy taken from Razieli on 14 Oct 2026 (<code>ACCURACY</code> in the page), so it doesn't need any connector. Region leads are grouped the way Razieli groups them, by the owner's reporting line. Two obvious typos are left out: Shaka's Q3 2026 forecast of $0 on 17 Jun and Daniel's Q3 2026 forecast of $1.0M on 23 Jun.</p>
+ <p>Judgment is the number the lead enters in Razieli on top of closed, Commit and Best Case. Every Razieli submission carries the judgment entered with it, so each forecast shows its own judgment, and the waterfall puts the starting forecast's judgment in the starting balance and shows only the change in purple. Each judgment is split into the lines of the lead's judgment note where the lines have amounts; whatever they don't account for shows as one more line. Shaka's judgments of $1 or $2 are markers and count as none. Razieli's history sometimes misses a lead's latest submission; it's added back from Razieli's current forecast. The Cloud Run app reads all of this live from Razieli; the claude.ai version uses a copy taken 14 Oct 2026. Judgment columns show only with all products selected.</p>
+ <p><b>Forecast accuracy.</b> Every forecast each lead submitted in Razieli since its history starts (2 Jun 2026), using the Forecast number they enter, not best case, against Razieli's closed ARR for the quarter. Region leads are grouped the way Razieli groups them, by the owner's reporting line. A submission whose Forecast is zero, equals its judgment, or is under half or over twice the lead's usual number for the quarter is treated as a typo and left out; the tab names any it leaves out.</p>
  <p>Calendar dots mark days the tab's lead updated their forecast, read from the #forecast-update Slack channel.</p>
  <p>Data loads live from Salesforce with your own access each time the page opens, and is cached for 5 minutes. Use Refresh for a fresh pull.</p>
 </footer>
@@ -306,44 +308,273 @@ const VIEWS = [
 const V = () => VIEWS.find(v => v.key === S.view) || VIEWS[0];
 const inView = o => !V().regions || V().regions.includes(o.region);
 
-// Judgment per view and quarter, from Razieli get_forecast_rollup (VP and region lead rows). Snapshot, not live.
-const JUDGMENT_AS_OF = "2026-10-14";
-// Razieli keeps only the current and the previous judgment. The previous one was in effect from `prevSubmitted` until `submitted`
-// (dates of the lead's last two submissions for the quarter, from #forecast-update); before `prevSubmitted` no judgment is known.
-// Region leads' notes keep no previous judgment (prev: null).
-// items: [label, previous, current]
-const JUDGMENT_CO = {
-  "Q4-2026": {val: 3350000, prev: 2350000, submitted: "2026-10-06", submittedAt: "2026-10-06T16:01:24Z", prevSubmitted: "2026-09-29", items: [
-    ["SPL", 0, 1500000], ["EWC", 500000, 500000], ["Generated converted pipeline News deals", 600000, 400000],
-    ["Pipeline above proposal sent conversion (+10% → +9%)", 600000, 550000], ["Pipeline below proposal conversion (+2.5% → +2.25%)", 300000, 300000],
-    ["NHL Renewal $ fix", 200000, 200000], ["Rambler Upsells", 400000, 150000], ["MSG Network", -260000, -260000],
-    ["Not itemised (note's lines sum $10K below its stated total)", 10000, 10000]]}
+// Razieli: every lead's forecast submissions (all quarters) with the judgment and judgment note entered with each, and per quarter
+// the rollup's closed ARR and the lead's current submitted forecast. The Cloud Run app swaps this for a live read (window.FD_APP);
+// the claude.ai artifact uses this copy, taken at asOf.
+// leads: {view: {name, subs: [[ms, "Q4-2026", forecast, judgment, note index or -1]]}}, closed: {"Q4-2026": {view: closed ARR}},
+// current: {"Q4-2026": {view: [ms, forecast, judgment, note index]}}
+let RAZIELI = {"asOf":"2026-10-14T10:24:00.000Z","closed":{"Q1-2027":{"apac":8345096,"co":104242917,"emea":38797573,"na":57100247},"Q2-2026":{"apac":10457476,"co":126583088,"emea":48142222,"na":67983391},"Q3-2026":{"apac":11226456,"co":130479070,"emea":47970461,"na":71282153},"Q4-2026":{"apac":10878655,"co":117313679,"emea":43053212,"na":63381812}},"current":{"Q1-2027":{"na":[1791815274869,75900500,1000000,62]},"Q2-2026":{"apac":[1782903881330,10458576,1100,88],"co":[1783427358648,126900000,1,87],"emea":[1782114597097,50109660,0,89],"na":[1782756072504,65195016,-168000,57]},"Q3-2026":{"apac":[1790554639703,11480000,0,-1],"co":[1790683705150,133000000,1,53],"emea":[1790490707471,49855315,0,-1],"na":[1790605276837,71538653,200000,58]},"Q4-2026":{"apac":[1790311923676,12100000,0,-1],"co":[1791302484656,142350000,3350000,56],"emea":[1791898350918,50500000,700000,86],"na":[1791815049560,76479045,1000000,61]}},"leads":{"apac":{"name":"Guy Port","subs":[[1783897909567,"Q3-2026",11466339,0,-1],[1784508359923,"Q3-2026",11290000,0,-1],[1785721628488,"Q3-2026",11290000,0,-1],[1786173637191,"Q3-2026",11330000,0,-1],[1786914779911,"Q3-2026",11460000,0,-1],[1789007672356,"Q3-2026",11400000,0,-1],[1790061975232,"Q3-2026",11450000,0,-1],[1790311930725,"Q4-2026",12100000,0,-1],[1790554646231,"Q3-2026",11480000,0,-1]]},"co":{"name":"Shachar Arnon","subs":[[1780432210066,"Q2-2026",126460147,0,-1],[1780432249629,"Q2-2026",127000000,0,-1],[1780432536503,"Q2-2026",127000000,0,-1],[1780432575399,"Q2-2026",127000000,0,-1],[1780434436209,"Q3-2026",135000000,0,-1],[1780952678935,"Q2-2026",127000000,0,-1],[1780952833911,"Q2-2026",127200000,0,-1],[1780953069526,"Q3-2026",135000000,0,-1],[1780953093079,"Q3-2026",135000000,0,-1],[1780953152620,"Q3-2026",135000000,0,-1],[1780955205912,"Q3-2026",135000000,0,-1],[1780955357310,"Q3-2026",135000000,0,-1],[1780955518628,"Q3-2026",134800000,0,-1],[1781620967316,"Q2-2026",127200000,0,-1],[1781623760506,"Q2-2026",127200000,-1350000,0],[1781623809294,"Q2-2026",127200000,1,0],[1781623846985,"Q2-2026",127200000,-1350000,0],[1781624032241,"Q2-2026",127200000,1,1],[1781625081315,"Q3-2026",134800000,0,-1],[1781625137801,"Q2-2026",127200000,1,1],[1781625141999,"Q2-2026",127200000,2,1],[1781625623929,"Q3-2026",135800000,0,-1],[1781713820228,"Q3-2026",136500000,0,-1],[1781714996344,"Q2-2026",127250000,2,1],[1781715277156,"Q3-2026",136500000,-350000,2],[1781718319297,"Q2-2026",127250000,2,1],[1781718396358,"Q2-2026",127200000,-1100000,3],[1781718534348,"Q3-2026",136500000,-300000,4],[1781718557870,"Q3-2026",136500000,-350000,4],[1781719349266,"Q3-2026",0,0,4],[1782309783112,"Q2-2026",127200000,-1100000,3],[1782329314470,"Q3-2026",136500000,-350000,4],[1782329724422,"Q3-2026",136500000,-1000000,5],[1782329766939,"Q3-2026",136500000,-350000,4],[1782329768325,"Q3-2026",136500000,-1000000,5],[1782329887233,"Q4-2026",138758525,0,-1],[1782330431148,"Q4-2026",138758525,0,-1],[1783459056477,"Q3-2026",135500000,-1000000,6],[1783464313119,"Q3-2026",135500000,-1000000,7],[1783464568605,"Q3-2026",135500000,750000,8],[1783465162767,"Q3-2026",135500000,750000,8],[1783465909184,"Q4-2026",138758525,0,9],[1783466331998,"Q3-2026",137500000,350000,10],[1783466362667,"Q4-2026",138758525,0,11],[1783466534951,"Q4-2026",138758525,1050000,12],[1783466564177,"Q4-2026",138758525,1150000,13],[1783466929364,"Q4-2026",138758525,1150000,13],[1783467405548,"Q4-2026",138758525,1150000,14],[1783467507134,"Q4-2026",138758525,3000000,15],[1783467920753,"Q4-2026",138758525,1150000,16],[1783497461971,"Q4-2026",148000000,3000000,17],[1783498810672,"Q4-2026",147300000,3000000,17],[1783498821363,"Q4-2026",147300000,3000000,17],[1783527446222,"Q4-2026",147300000,2300000,18],[1783530459983,"Q4-2026",146600000,1450000,19],[1783625389401,"Q3-2026",137100000,350000,20],[1783625402849,"Q3-2026",137100000,450000,20],[1783625541239,"Q3-2026",137600000,-400000,21],[1783625696997,"Q4-2026",145800000,3800000,22],[1784055106824,"Q4-2026",145850000,3450000,23],[1784057485478,"Q3-2026",136750000,-550000,24],[1784057495169,"Q3-2026",136750000,-550000,24],[1784059970688,"Q4-2026",145850000,3900000,25],[1784060296849,"Q4-2026",145650000,4400000,26],[1784060350040,"Q4-2026",146000000,4400000,26],[1784060359502,"Q4-2026",146000000,4400000,26],[1784653029153,"Q3-2026",135150000,-450000,27],[1785291747588,"Q3-2026",135900000,-625000,28],[1785292220350,"Q4-2026",146000000,3650000,29],[1785292232342,"Q4-2026",146000000,3650000,29],[1785891694524,"Q3-2026",135700000,-675000,30],[1785893061450,"Q4-2026",146000000,2530000,31],[1785893142103,"Q4-2026",146000000,2530000,31],[1786460814184,"Q3-2026",134900000,-675000,32],[1786460846831,"Q4-2026",145750000,2530000,33],[1786461297209,"Q3-2026",134900000,-150000,34],[1786461328065,"Q3-2026",134900000,-150000,34],[1786461882090,"Q4-2026",145750000,2000000,35],[1786461896200,"Q4-2026",145750000,2000000,35],[1786461940637,"Q4-2026",145750000,2000000,35],[1786461953414,"Q4-2026",145750000,2000000,35],[1786609906425,"Q4-2026",145850000,1750000,36],[1786609925764,"Q4-2026",145850000,1750000,36],[1786609931632,"Q4-2026",145850000,1750000,36],[1786609968463,"Q4-2026",145850000,1750000,36],[1786609980739,"Q4-2026",145850000,1750000,36],[1786626359678,"Q3-2026",134750000,350000,37],[1786626365569,"Q3-2026",134750000,350000,37],[1786626371694,"Q3-2026",134750000,350000,37],[1786626381345,"Q3-2026",134750000,350000,37],[1786626392957,"Q3-2026",134750000,350000,37],[1786626403648,"Q3-2026",134750000,350000,37],[1786626465462,"Q3-2026",134750000,350000,37],[1787084445852,"Q3-2026",135600000,350000,38],[1787084479100,"Q4-2026",145600000,1750000,39],[1787085732750,"Q3-2026",135600000,200000,40],[1787085834330,"Q3-2026",135600000,200000,40],[1787086291229,"Q3-2026",135600000,200000,40],[1787086295005,"Q3-2026",135600000,200000,40],[1787086309997,"Q3-2026",135600000,200000,40],[1787086320271,"Q3-2026",135600000,200000,40],[1787086839589,"Q4-2026",145600000,950000,41],[1787086878220,"Q4-2026",145600000,950000,41],[1787086888247,"Q4-2026",145600000,950000,41],[1787688619868,"Q3-2026",134600000,175000,42],[1787688729760,"Q3-2026",134900000,175000,42],[1787690909286,"Q4-2026",145600000,1050000,43],[1787690991671,"Q4-2026",145600000,1350000,44],[1787690997980,"Q4-2026",145600000,1350000,44],[1787691495973,"Q4-2026",145600000,1850000,45],[1787691549047,"Q4-2026",144600000,1850000,45],[1788297010053,"Q3-2026",134900001,175000,46],[1788297033014,"Q3-2026",134900001,175000,46],[1788297257960,"Q4-2026",144450000,1650000,47],[1788297286775,"Q4-2026",144450000,1650000,47],[1788297634009,"Q4-2026",144450000,1650000,47],[1788297714379,"Q4-2026",144450000,1900000,48],[1788297727366,"Q4-2026",144450000,1900000,48],[1788885486013,"Q3-2026",135000001,25000,49],[1788885689780,"Q3-2026",135000001,25000,49],[1788887136136,"Q4-2026",144000000,2350000,50],[1788887355368,"Q4-2026",144000000,2350000,50],[1788887419180,"Q4-2026",144000000,2350000,50],[1790118231673,"Q3-2026",134050000,25000,51],[1790118250579,"Q3-2026",134050000,1,51],[1790121566964,"Q4-2026",144000000,2225000,52],[1790121618599,"Q4-2026",144000000,2225000,52],[1790683322385,"Q3-2026",133000000,1,53],[1790685465843,"Q4-2026",143600000,2350000,54],[1791302352207,"Q4-2026",143350000,2850000,55],[1791302428756,"Q4-2026",143350000,3350000,56],[1791302463230,"Q4-2026",143350000,3350000,56]]},"emea":{"name":"Lidor Oz","subs":[[1780819462074,"Q2-2026",50209337,0,-1],[1780823987086,"Q2-2026",50209337,1900000,63],[1780824505685,"Q2-2026",50209337,2300000,64],[1780824625865,"Q2-2026",50209337,0,-1],[1780828278457,"Q2-2026",50209337,-100000,65],[1780828345812,"Q2-2026",50209337,0,-1],[1780828389774,"Q2-2026",50209337,-100000,66],[1780828402290,"Q2-2026",50300000,-100000,66],[1780828421158,"Q2-2026",50300000,0,-1],[1780836947388,"Q2-2026",50300000,-100000,67],[1780836971711,"Q2-2026",50308271,-100000,67],[1780837073260,"Q2-2026",50308271,2300000,68],[1780837109993,"Q2-2026",50308271,2300000,69],[1780840523022,"Q2-2026",50308271,0,-1],[1780840538158,"Q2-2026",50308271,-100000,70],[1780840637837,"Q2-2026",50308271,2400000,71],[1780840755541,"Q2-2026",50308271,0,-1],[1780903608993,"Q2-2026",50308271,-100000,72],[1780904040355,"Q3-2026",50190862,2300000,73],[1781680304277,"Q2-2026",50200000,-100000,72],[1782113589629,"Q2-2026",50200000,0,-1],[1782120658404,"Q3-2026",48735251,0,-1],[1783242373551,"Q3-2026",51116748,2835000,74],[1783245894447,"Q4-2026",54041177,4100000,75],[1783673585117,"Q3-2026",55594350,3060000,76],[1783677999499,"Q4-2026",52654769,-1960000,77],[1784460764417,"Q3-2026",52126492,-2080000,78],[1784465572462,"Q4-2026",56549901,300000,79],[1785076997626,"Q3-2026",50786117,300000,80],[1785660502408,"Q3-2026",50708083,300000,80],[1785662335839,"Q4-2026",54163974,300000,79],[1786265060371,"Q3-2026",50880429,300000,80],[1786272214794,"Q4-2026",54631948,450000,81],[1788778600862,"Q3-2026",50406919,400000,82],[1788852258913,"Q4-2026",53759725,400000,83],[1789547422766,"Q3-2026",50632000,200000,82],[1789547443469,"Q4-2026",52106054,400000,83],[1790077096978,"Q3-2026",50632000,200000,84],[1790077109629,"Q3-2026",50632000,100000,84],[1790489749155,"Q3-2026",50044138,0,-1],[1790490690417,"Q3-2026",49567714,0,-1],[1790490812341,"Q4-2026",52106054,400000,83],[1790491379236,"Q4-2026",52106054,500000,85],[1791898170516,"Q4-2026",51523560,700000,86],[1791898250207,"Q4-2026",51523560,700000,86],[1791898360512,"Q4-2026",50500000,700000,86]]},"na":{"name":"Daniel Pesce","subs":[[1780936815430,"Q2-2026",65117098,-168000,57],[1780936835944,"Q2-2026",65117098,-168000,57],[1780937086150,"Q3-2026",70732831,1000000,58],[1781527768485,"Q2-2026",65773016,-168000,57],[1782221422693,"Q3-2026",1000000,1000000,58],[1782739731847,"Q2-2026",65454516,-168000,57],[1782740398578,"Q3-2026",68868749,1000000,58],[1782756080141,"Q2-2026",65195016,-168000,57],[1782756191831,"Q3-2026",72105749,1000000,58],[1783359178327,"Q4-2026",73484539,2000000,59],[1783623710132,"Q3-2026",72711254,1000000,58],[1783950668225,"Q3-2026",72685754,1000000,58],[1783950885368,"Q4-2026",76981895,2000000,59],[1784557605091,"Q3-2026",73476129,1000000,58],[1784564527820,"Q4-2026",75169395,2000000,59],[1785179382033,"Q3-2026",73179021,1000000,58],[1785866631364,"Q3-2026",72662410,1000000,58],[1785866679143,"Q4-2026",75700148,1700000,60],[1786385383690,"Q3-2026",72662410,1000000,58],[1787061046529,"Q3-2026",72603868,1000000,58],[1787062622521,"Q4-2026",74368235,1000000,61],[1787578450054,"Q3-2026",72296868,1000000,58],[1787579104611,"Q4-2026",74275104,1000000,61],[1788270271567,"Q3-2026",72296868,200000,58],[1788270705086,"Q4-2026",74444104,1000000,61],[1788545428612,"Q3-2026",71738429,200000,58],[1788545568272,"Q4-2026",75038665,1000000,61],[1790081349006,"Q3-2026",71594412,200000,58],[1790082738927,"Q4-2026",75937128,1000000,61],[1790605294859,"Q3-2026",71538653,200000,58],[1790605496890,"Q4-2026",75778202,1000000,61],[1791211740925,"Q4-2026",76068816,1000000,61],[1791815056882,"Q4-2026",76479045,1000000,61],[1791815145766,"Q1-2027",75900500,0,-1],[1791815284303,"Q1-2027",75900500,1000000,62]]}},"live":false,"notes":["-$50K Yahoo\n-$700K Slipped from Best Case\n-$600K ABC News\n==========\nTotal: -$1,350K\n\n\n************************\n*PREVIOUS UDGEMENT*\n************************\n\n+$100K Leftover pipeline\n-$50K Yahoo\n-$600K Slipped from Best Case\n-$800K ABC News\n==========\nTotal: -$1,350K","a","+$700K Best Case slipped from Q2\n+$700K 11% conversion - pipeline above proposal \n+$500K 5% - pipeline before proposal conversion\n-$250K MotoGP\n-$300K SPL\n-$400K NLL\n-$1,350K - Q2 judgement\n=============\nTotal: -$350K","-$500K Slipped from Best Case\n-$600K ABC News\n==========\nTotal: -$1,100K","+$700K 11% conversion - pipeline above proposal \n+$500K Best Case slipped from Q2\n+$500K 5% - pipeline before proposal conversion\n-$250K MotoGP\n-$300K SPL\n-$400K NLL\n-$1,100K - Q2 judgement\n=============\nTotal: -$350K","+$550K 5% - pipeline before proposal conversion\n+$450K 10% conversion - pipeline above proposal \n+$150K Best Case slipped from Q2\n-$300K SPL\n-$400K NLL\n -$1,450K - Q2 judgement\n=============\nTotal: -$1,000K\n\n************************\nPREVIOUS JUDGEMENT\n************************\n\n+$700K 11% conversion - pipeline above proposal \n+$500K Best Case slipped from Q2\n+$500K 5% - pipeline before proposal conversion\n-$250K MotoGP\n-$300K SPL\n-$400K NLL\n-$1,100K - Q2 judgement\n=============\nTotal: -$350K","+$550K 5% - pipeline before proposal conversion\n+$450K 10% conversion - pipeline above proposal \n+$150K Best Case slipped from Q2\n-$300K SPL\n-$400K NLL\n -$1,450K - Q2 judgement\n=============\nTotal: -$1,000K\n\n************************\nPREVIOUS JUDGEMENT\n************************\n\n+$550K 5% - pipeline before proposal conversion\n+$450K 10% conversion - pipeline above proposal \n+$150K Best Case slipped from Q2\n-$300K SPL\n-$400K NLL\n -$1,450K - Q2 judgement\n=============\nTotal: -$1,000K","+$550K 5% - pipeline before proposal conversion\n+$450K 10% conversion - pipeline above proposal \n+$150K Best Case slipped from Q2\n-$400K NLL\n-$300K - ABC\n-$500K SPL\n=============\nTotal: -$1,000K\n\n************************\nPREVIOUS JUDGEMENT\n************************\n\n+$550K 5% - pipeline before proposal conversion\n+$450K 10% conversion - pipeline above proposal \n+$150K Best Case slipped from Q2\n-$300K SPL\n-$400K NLL\n -$1,450K - Q2 judgement\n=============\nTotal: -$1,000K","+$1000K Rambler and Churchill Downs FAST\n+$350K 3% - pipeline before proposal conversion\n+$200K 5% conversion - pipeline above proposal \n-$300K - ABC\n-$500K SPL\n=============\nTotal: +$750K\n\n************************\nPREVIOUS JUDGEMENT\n************************\n\n+$550K 5% - pipeline before proposal conversion\n+$450K 10% conversion - pipeline above proposal \n+$150K Best Case slipped from Q2\n-$300K SPL\n-$400K NLL\n -$1,450K - Q2 judgement\n=============\nTotal: -$1,000K","+$1700K NHL Renewal","+$600K Rambler and Churchill Downs FAST\n+$350K 3% - pipeline before proposal conversion\n+$200K 5% conversion - pipeline above proposal \n-$300K - ABC\n-$500K SPL\n=============\nTotal: +$350K\n\n************************\nPREVIOUS JUDGEMENT\n************************\n\n+$550K 5% - pipeline before proposal conversion\n+$450K 10% conversion - pipeline above proposal \n+$150K Best Case slipped from Q2\n-$300K SPL\n-$400K NLL\n -$1,450K - Q2 judgement\n=============\nTotal: -$1,000K","+$1700K NHL Renewal\n\n+$750K Q2 Judgement\n-$1500K Unconverted from Best Case\n=============\nTotal: +$???\n\n************************\nPREVIOUS JUDGEMENT\n************************","+$1700K NHL Renewal\n+$500K Churchill Downs FAST\n+$350K Q2 Judgement\n-$1500K Unconverted from Best Case\n=============\nTotal: +$1050\n\n************************\nPREVIOUS JUDGEMENT\n************************","+$1700K NHL Renewal\n+$600K Churchill Downs FAST\n+$350K Q2 Judgement\n-$1500K Unconverted from Best Case\n=============\nTotal: +$1050\n\n************************\nPREVIOUS JUDGEMENT\n************************","+$1700K NHL Renewal\n+$600K Churchill Downs FAST\n+$350K Q2 Judgement\n+$350K+4% pipeline conversion\n-$1500K Unconverted from Best Case\n=============\nTotal: +$1500\n\n************************\nPREVIOUS JUDGEMENT\n************************","+$1700K NHL Renewal\n+$600K Churchill Downs FAST\n+$350K Q2 Judgement\n+$350K+4% pipeline conversion\n-$1500K Unconverted from Best Case\n=============\nTotal: +$3000K\n\n************************\nPREVIOUS JUDGEMENT\n************************","+$1700K NHL Renewal\n+$600K Churchill Downs FAST\n+$350K Q2 Judgement\n+$350K+4% pipeline conversion\n-$1500K Unconverted from Best Case\n=============\nTotal: +$3000\n\n************************\nPREVIOUS JUDGEMENT\n************************","+$1700K NHL Renewal\n+$600K Churchill Downs FAST\n+$350K Q2 Judgement\n+$350K+4% pipeline conversion\n=============\nTotal: +$3000K\n\n************************\nPREVIOUS JUDGEMENT\n************************","+$1000K NHL Renewal\n+$600K Churchill Downs FAST\n+$350K Q2 Judgement\n+$350K+4% pipeline conversion\n=============\nTotal: +$2300K\n\n************************\nPREVIOUS JUDGEMENT\n************************","+$1000K NHL Renewal\n+$600K Churchill Downs FAST\n+$350K Q2 Judgement\n+$350K+4% pipeline conversion\n-$850K Telefonica, Fandom Labs\n=============\nTotal: +$2300K\n\n************************\nPREVIOUS JUDGEMENT\n************************","+$600K Rambler FAST\n+$350K 3% - pipeline before proposal conversion\n+$200K 5% conversion - pipeline above proposal \n-$200K - ABC\n-$500K SPL\n=============\nTotal: +$450K\n\n************************\nPREVIOUS JUDGEMENT\n************************\n\n+$550K 5% - pipeline before proposal conversion\n+$450K 10% conversion - pipeline above proposal \n+$150K Best Case slipped from Q2\n-$300K SPL\n-$400K NLL\n -$1,450K - Q2 judgement\n=============\nTotal: -$1,000K","+$600K Rambler FAST\n+$350K 3% - pipeline before proposal conversion\n+$200K 5% conversion - pipeline above proposal \n-$200K - ABC\n-$500K SPL\n-$850K Telefonica, Fandom Labs\n=============\nTotal: -$400K\n\n************************\nPREVIOUS JUDGEMENT\n************************\n\n+$550K 5% - pipeline before proposal conversion\n+$450K 10% conversion - pipeline above proposal \n+$150K Best Case slipped from Q2\n-$300K SPL\n-$400K NLL\n -$1,450K - Q2 judgement\n=============\nTotal: -$1,000K","+$1500K Slipped from Q3\n+$1000K NHL Renewal\n+$600K Churchill Downs FAST\n+$350K Q3 Judgement\n+$350K +4% pipeline conversion\n=============\nTotal: +$3800K\n\n************************\nPREVIOUS JUDGEMENT\n************************","+$1500K Slipped from Q3\n+$1000K NHL Renewal\n+$600K Churchill Downs FAST\n+$600K Rambler FAST\n+$350K +4% pipeline conversion\n=============\nTotal: +$3450K\n\n************************\nPREVIOUS JUDGEMENT\n************************\n\n+$1500K Slipped from Q3\n+$1000K NHL Renewal\n+$600K Churchill Downs FAST\n+$350K +4% pipeline conversion\n=============\nTotal: +$3450K","+$275K 2.5% - pipeline before proposal conversion\n+$200K 5% conversion - pipeline above proposal \n-$500K SPL\n-$525K Telefonica\n=============\nTotal: -$550K\n\n************************\nPREVIOUS JUDGEMENT\n************************\n\n+$600K Rambler FAST\n+$350K 3% - pipeline before proposal conversion\n+$200K 5% conversion - pipeline above proposal \n-$200K - ABC\n-$500K SPL\n-$850K Telefonica, Fandom Labs\n=============\nTotal: -$400K","+$1500K Slipped from Q3\n+$1000K NHL Renewal $ fix\n+$600K Churchill Downs FAST\n+$600K Rambler FAST\n+$200K +10% pipeline above proposal sent conversion\n+$270K +3% pipeline below proposal conversion\n-$270K Fandom Labs\n=============\nTotal: +$3900K\n\n************************\nPREVIOUS JUDGEMENT\n************************\n\n+$1500K Slipped from Q3\n+$1000K NHL Renewal\n+$600K Churchill Downs FAST\n+$350K +4% pipeline conversion\n=============\nTotal: +$3450K","+$1500K Slipped from Q3\n+$1000K NHL Renewal $ fix\n+$600K Churchill Downs FAST\n+$600K Rambler FAST\n+$500 WSC Studios additional pipeline\n+$200K +10% pipeline above proposal sent conversion\n+$270K +3% pipeline below proposal conversion\n-$270K Fandom Labs\n=============\nTotal: +$3900K\n\n************************\nPREVIOUS JUDGEMENT\n************************\n\n+$1500K Slipped from Q3\n+$1000K NHL Renewal\n+$600K Churchill Downs FAST\n+$350K +4% pipeline conversion\n=============\nTotal: +$3450K","+$100K 2% - pipeline before proposal conversion\n+$475K 4.5% conversion - pipeline above proposal \n-$500K SPL\n-$525K Telefonica\n=============\nTotal: -$450K\n\n************************\nPREVIOUS JUDGEMENT\n************************\n\n+$275K 2.5% - pipeline before proposal conversion\n+$200K 5% conversion - pipeline above proposal \n-$500K SPL\n-$525K Telefonica\n=============\nTotal: -$550K","+$150K 2% - pipeline before proposal conversion\n+$250K 4% conversion - pipeline above proposal \n-$500K SPL\n-$525K Telefonica\n=============\nTotal: -$625K\n\n************************\nPREVIOUS JUDGEMENT\n************************\n\n+$100K 2% - pipeline before proposal conversion\n+$475K 4% conversion - pipeline above proposal \n-$500K SPL\n-$525K Telefonica\n=============\nTotal: -$450K","+$1200K Slipped from Q3\n+$1000K NHL Renewal $ fix\n+$600K Churchill Downs FAST\n+$600K Rambler FAST\n+$220K +10% pipeline above proposal sent conversion\n+$300K +3% pipeline below proposal conversion\n-$270K Fandom Labs\n=============\nTotal: +$3650K\n\n************************\nPREVIOUS JUDGEMENT\n************************\n\n+$1500K Slipped from Q3\n+$1000K NHL Renewal $ fix\n+$600K Churchill Downs FAST\n+$600K Rambler FAST\n+$500 WSC Studios additional pipeline\n+$200K +10% pipeline above proposal sent conversion\n+$300K +3% pipeline below proposal conversion\n-$270K Fandom Labs\n=============\nTotal: +$4400K","+$120K 1.5% - pipeline before proposal conversion\n+$230K 4% conversion - pipeline above proposal \n-$500K SPL\n-$525K Telefonica\n=============\nTotal: -$675K\n\n************************\nPREVIOUS JUDGEMENT\n************************\n\n+$150K 2% - pipeline before proposal conversion\n+$250K 4% conversion - pipeline above proposal \n-$500K SPL\n-$525K Telefonica\n=============\nTotal: -$625K","+$1000K NHL Renewal $ fix\n+$600K Churchill Downs FAST\n+$600K Rambler FAST\n+$250K +10% pipeline above proposal sent conversion\n+$350K +3% pipeline below proposal conversion\n-$270K Fandom Labs\n=============\nTotal: +$2530K\n\n************************\nPREVIOUS JUDGEMENT\n************************\n\n+$1200K Slipped from Q3\n+$1000K NHL Renewal $ fix\n+$600K Churchill Downs FAST\n+$600K Rambler FAST\n+$220K +10% pipeline above proposal sent conversion\n+$300K +3% pipeline below proposal conversion\n-$270K Fandom Labs\n=============\nTotal: +$3650K","+$120K 1.25% - pipeline before proposal conversion\n+$230K 3.5% conversion - pipeline above proposal \n-$500K SPL\n=============\nTotal: -$675K\n\n************************\nPREVIOUS JUDGEMENT\n************************\n\n+$120K 1.5% - pipeline before proposal conversion\n+$230K 4% conversion - pipeline above proposal \n-$500K SPL\n-$525K Telefonica\n=============\nTotal: -$675K","+$1000K NHL Renewal $ fix\n+$600K Churchill Downs FAST\n+$600K Rambler FAST\n+$250K +10% pipeline above proposal sent conversion\n+$350K +3% pipeline below proposal conversion\n-$270K Fandom Labs\n-$525K Telefonica\n\n=============\nTotal: +$2530K\n\n************************\nPREVIOUS JUDGEMENT\n************************\n\n+$1000K NHL Renewal $ fix\n+$600K Churchill Downs FAST\n+$600K Rambler FAST\n+$250K +10% pipeline above proposal sent conversion\n+$350K +3% pipeline below proposal conversion\n-$270K Fandom Labs\n\n=============\nTotal: +$2530K","+$75K 1.25% - pipeline before proposal conversion\n+$275K 3.5% conversion - pipeline above proposal \n-$500K SPL\n=============\nTotal: -$150K\n\n************************\nPREVIOUS JUDGEMENT\n************************\n\n+$120K 1.5% - pipeline before proposal conversion\n+$230K 4% conversion - pipeline above proposal \n-$500K SPL\n-$525K Telefonica\n=============\nTotal: -$675K","+$1000K NHL Renewal $ fix\n+$600K Churchill Downs FAST\n+$600K Rambler FAST\n+$250K +10% pipeline above proposal sent conversion\n+$350K +3% pipeline below proposal conversion\n-$800K Fandom Labs, Telefonica\n\n=============\nTotal: +$2000K\n\n************************\nPREVIOUS JUDGEMENT\n************************\n\n+$1000K NHL Renewal $ fix\n+$600K Churchill Downs FAST\n+$600K Rambler FAST\n+$250K +10% pipeline above proposal sent conversion\n+$350K +3% pipeline below proposal conversion\n-$270K Fandom Labs\n\n=============\nTotal: +$2530K","+$1000K NHL Renewal $ fix\n+$600K Churchill Downs FAST\n+$600K Rambler FAST\n+$250K +10% pipeline above proposal sent conversion\n+$350K +3% pipeline below proposal conversion\n-$1050K Fandom Labs, Telefonica, MSG Network\n\n=============\nTotal: +$1750K\n\n************************\nPREVIOUS JUDGEMENT\n************************\n\n+$1000K NHL Renewal $ fix\n+$600K Churchill Downs FAST\n+$600K Rambler FAST\n+$250K +10% pipeline above proposal sent conversion\n+$350K +3% pipeline below proposal conversion\n-$270K Fandom Labs\n\n=============\nTotal: +$2530K","+$75K 1.25% - pipeline before proposal conversion\n+$275K 3.5% conversion - pipeline above proposal \n=============\nTotal: +$350K\n\n************************\nPREVIOUS JUDGEMENT\n************************\n\n+$120K 1.5% - pipeline before proposal conversion\n+$230K 4% conversion - pipeline above proposal \n-$500K SPL\n-$525K Telefonica\n=============\nTotal: -$675K","+$75K 1.25% - pipeline before proposal conversion\n+$275K 3.5% conversion - pipeline above proposal \n=============\nTotal: +$350K\n\n************************\nPREVIOUS JUDGEMENT\n************************\n\n+$75K 1.25% - pipeline before proposal conversion\n+$275K 3.5% conversion - pipeline above proposal \n=============\nTotal: +$350K","+$400K NHL Renewal $ fix\n+$600K Churchill Downs FAST\n+$600K Rambler FAST\n+$250K +10% pipeline above proposal sent conversion\n+$350K +3% pipeline below proposal conversion\n-$1050K Fandom Labs, Telefonica, MSG Network\n\n=============\nTotal: +$1750K\n\n************************\nPREVIOUS JUDGEMENT\n************************\n\n+$1000K NHL Renewal $ fix\n+$600K Churchill Downs FAST\n+$600K Rambler FAST\n+$250K +10% pipeline above proposal sent conversion\n+$350K +3% pipeline below proposal conversion\n-$1050K Fandom Labs, Telefonica, MSG Network\n\n=============\nTotal: +$1750K","+$50K 1% - pipeline before proposal conversion\n+$150K 3% conversion - pipeline above proposal \n=============\nTotal: +$200K\n\n************************\nPREVIOUS JUDGEMENT\n************************\n\n+$75K 1.25% - pipeline before proposal conversion\n+$275K 3.5% conversion - pipeline above proposal \n=============\nTotal: +$350K","+$400K NHL Renewal $ fix\n+$600K Churchill Downs FAST\n+$400K Rambler FAST\n+$300K +9% pipeline above proposal sent conversion\n+$275K +2.5% pipeline below proposal conversion\n-$1050K Fandom Labs, Telefonica, MSG Network\n\n=============\nTotal: +$950K\n\n************************\nPREVIOUS JUDGEMENT\n************************\n\n+$1000K NHL Renewal $ fix\n+$600K Churchill Downs FAST\n+$600K Rambler FAST\n+$250K +10% pipeline above proposal sent conversion\n+$350K +3% pipeline below proposal conversion\n-$1050K Fandom Labs, Telefonica, MSG Network\n\n=============\nTotal: +$1750K","+$65K 1% - pipeline before proposal conversion\n+$110K 2.5% conversion - pipeline above proposal \n=============\nTotal: +$175K\n\n************************\nPREVIOUS JUDGEMENT\n************************\n\n+$50K 1% - pipeline before proposal conversion\n+$150K 3% conversion - pipeline above proposal \n=============\nTotal: +$200K","+$200K NHL Renewal $ fix\n+$600K Churchill Downs FAST\n+$200K Rambler FAST\n+$400K Generated News deals\n+$400K +10% pipeline above proposal sent conversion\n+$300K +2.5% pipeline below proposal conversion\n-$1050K Fandom Labs, Telefonica, MSG Network\n\n=============\nTotal: +$1050K\n\n************************\nPREVIOUS JUDGEMENT\n************************\n\n+$400K NHL Renewal $ fix\n+$600K Churchill Downs FAST\n+$400K Rambler FAST\n+$300K +9% pipeline above proposal sent conversion\n+$275K +2.5% pipeline below proposal conversion\n-$1050K Fandom Labs, Telefonica, MSG Network\n\n=============\nTotal: +$950K","+$600K Churchill Downs FAST\n+$400K Generated News deals\n+$400K +10% pipeline above proposal sent conversion\n+$300K +2.5% pipeline below proposal conversion\n+$300K Generated Partnerbrite deals\n+$200K NHL Renewal $ fix\n+$200K Rambler FAST\n-$1050K Fandom Labs, Telefonica, MSG Network\n\n=============\nTotal: +$1350K\n\n************************\nPREVIOUS JUDGEMENT\n************************\n\n+$400K NHL Renewal $ fix\n+$600K Churchill Downs FAST\n+$400K Rambler FAST\n+$300K +9% pipeline above proposal sent conversion\n+$275K +2.5% pipeline below proposal conversion\n-$1050K Fandom Labs, Telefonica, MSG Network\n\n=============\nTotal: +$950K","+$600K Churchill Downs FAST\n+$500K EWC\n+$400K Generated News deals\n+$400K +10% pipeline above proposal sent conversion\n+$300K +2.5% pipeline below proposal conversion\n+$300K Generated Partnerbrite deals\n+$200K NHL Renewal $ fix\n+$200K Rambler FAST\n-$1050K Fandom Labs, Telefonica, MSG Network\n\n=============\nTotal: +$1850K\n\n************************\nPREVIOUS JUDGEMENT\n************************\n\n+$400K NHL Renewal $ fix\n+$600K Churchill Downs FAST\n+$400K Rambler FAST\n+$300K +9% pipeline above proposal sent conversion\n+$275K +2.5% pipeline below proposal conversion\n-$1050K Fandom Labs, Telefonica, MSG Network\n\n=============\nTotal: +$950K","+$50K 1% - pipeline before proposal conversion\n+$125K 2.5% conversion - pipeline above proposal \n=============\nTotal: +$175K\n\n************************\nPREVIOUS JUDGEMENT\n************************\n\n+$65K 1% - pipeline before proposal conversion\n+$110K 2.5% conversion - pipeline above proposal \n=============\nTotal: +$175K","+$500K Rambler FAST\n+$500K EWC\n+$500K Generated News deals\n+$450K +10% pipeline above proposal sent conversion\n+$250K +2.25% pipeline below proposal conversion\n+$300K Generated Partnerbrite deals\n+$200K NHL Renewal $ fix\n-$1050K Fandom Labs, Telefonica, MSG Network\n\n=============\nTotal: +$2150K\n\n************************\nPREVIOUS JUDGEMENT\n************************\n\n+$600K Churchill Downs FAST\n+$500K EWC\n+$400K Generated News deals\n+$400K +10% pipeline above proposal sent conversion\n+$300K +2.5% pipeline below proposal conversion\n+$300K Generated Partnerbrite deals\n+$200K NHL Renewal $ fix\n+$500K Rambler FAST\n-$1050K Fandom Labs, Telefonica, MSG Network\n\n=============\nTotal: +$2150K","+$500K Rambler FAST\n+$500K EWC\n+$500K Generated News deals\n+$550K +12% pipeline above proposal sent conversion\n+$400K +3.5% pipeline below proposal conversion\n+$300K Generated Partnerbrite deals\n+$200K NHL Renewal $ fix\n-$1050K Fandom Labs, Telefonica, MSG Network\n\n=============\nTotal: +$2150K\n\n************************\nPREVIOUS JUDGEMENT\n************************\n\n+$600K Churchill Downs FAST\n+$500K EWC\n+$400K Generated News deals\n+$400K +10% pipeline above proposal sent conversion\n+$300K +2.5% pipeline below proposal conversion\n+$300K Generated Partnerbrite deals\n+$200K NHL Renewal $ fix\n+$500K Rambler FAST\n-$1050K Fandom Labs, Telefonica, MSG Network\n\n=============\nTotal: +$2150K","+$25K 2.0% conversion - pipeline above proposal \n=============\nTotal: +$25K\n\n************************\nPREVIOUS JUDGEMENT\n************************\n\n+$125K 2.0% conversion - pipeline above proposal \n=============\nTotal: +$175K","+$1000K Generated converted pipeline News deals\n+$500K EWC\n+$450K +12% pipeline above proposal sent conversion\n+$400K Rambler Upsells\n+$400K +3.0% pipeline below proposal conversion\n+$200K NHL Renewal $ fix\n-$600K Fandom Labs, MSG Network\n\n=============\nTotal: +$2350K\n\n************************\nPREVIOUS JUDGEMENT\n************************\n\n+$500K Rambler FAST\n+$500K EWC\n+$500K Generated News deals\n+$550K +12% pipeline above proposal sent conversion\n+$400K +3.5% pipeline below proposal conversion\n+$300K Generated Partnerbrite deals\n+$200K NHL Renewal $ fix\n-$1050K Fandom Labs, Telefonica, MSG Network\n\n=============\nTotal: +$2150K","=============\nTotal: +$0K\n\n************************\nPREVIOUS JUDGEMENT\n************************\n\n+$25K 2.0% conversion - pipeline above proposal \n=============\nTotal: +$25K","+$800K Generated converted pipeline News deals\n+$550K +12% pipeline above proposal sent conversion\n+$500K EWC\n+$400K Rambler Upsells\n+$375K +2.75% pipeline below proposal conversion\n+$200K NHL Renewal $ fix\n-$600K Fandom Labs, MSG Network\n\n=============\nTotal: +$2225K\n\n\n\n************************\nPREVIOUS JUDGEMENT\n************************\n\n+$1000K Generated converted pipeline News deals\n+$500K EWC\n+$450K +12% pipeline above proposal sent conversion\n+$400K Rambler Upsells\n+$400K +3.0% pipeline below proposal conversion\n+$200K NHL Renewal $ fix\n-$600K Fandom Labs, MSG Network\n\n=============\nTotal: +$2350K","=============\nTotal: +$0K\n\n************************\nPREVIOUS JUDGEMENT\n************************\n\n=============\nTotal: +$0K","+$600K Generated converted pipeline News deals\n+$600K +10% pipeline above proposal sent conversion\n+$500K EWC\n+$400K Rambler Upsells\n+$300K +2.5% pipeline below proposal conversion\n+$200K NHL Renewal $ fix\n-$260K MSG Network\n\n=============\nTotal: +$2350K\n\n\n************************\nPREVIOUS JUDGEMENT\n************************\n\n+$800K Generated converted pipeline News deals\n+$550K +10% pipeline above proposal sent conversion\n+$500K EWC\n+$400K Rambler Upsells\n+$375K +2.75% pipeline below proposal conversion\n+$200K NHL Renewal $ fix\n-$600K Fandom Labs, MSG Network\n\n=============\nTotal: +$2225K","+$1000K SPL\n+$500K EWC\n+$400K Generated converted pipeline News deals\n+$550K +9% pipeline above proposal sent conversion\n+$300K +2.25% pipeline below proposal conversion\n+$200K NHL Renewal $ fix\n+$150K Rambler Upsells\n-$260K MSG Network\n\n=============\nTotal: +$2350K\n\n\n************************\nPREVIOUS JUDGEMENT\n************************\n\n+$600K Generated converted pipeline News deals\n+$600K +10% pipeline above proposal sent conversion\n+$500K EWC\n+$400K Rambler Upsells\n+$300K +2.5% pipeline below proposal conversion\n+$200K NHL Renewal $ fix\n-$260K MSG Network\n\n=============\nTotal: +$2350K","+$1500K SPL\n+$500K EWC\n+$400K Generated converted pipeline News deals\n+$550K +9% pipeline above proposal sent conversion\n+$300K +2.25% pipeline below proposal conversion\n+$200K NHL Renewal $ fix\n+$150K Rambler Upsells\n-$260K MSG Network\n\n=============\nTotal: +$3350K\n\n\n************************\nPREVIOUS JUDGEMENT\n************************\n\n+$600K Generated converted pipeline News deals\n+$600K +10% pipeline above proposal sent conversion\n+$500K EWC\n+$400K Rambler Upsells\n+$300K +2.5% pipeline below proposal conversion\n+$200K NHL Renewal $ fix\n-$260K MSG Network\n\n=============\nTotal: +$2350K","-90k for nba streams\n-78k for bein opt out","additional pipeline","1,000,000 for Q3\n1,000,000 for Q4","1,000,000 for Q3\n1,000,000 for Q4\nRisk for Q4\nCanal Goat -145k\nNews Clients -155k","1,000,000 for Q4","Q1","From pipeline deals:\neSports - 1M\nEHF - 290K\nPremier League upsell - 100K\nLeverkusen - 50K\n3 more 150K deals from open pipe","From pipeline deals:\neSports - 1M\nViaplay - 400K saved from big opp\nEHF - 290K\nPremier League upsell - 100K\nLeverkusen - 50K\n3 more 150K deals from open pipe","100K which won't close from 'Best Case' deals","minus 100K which won't close in 'best case' deals","minus 100K from best case deals (won't close / amount decrease)","- eSports - 1M\n- EHF - 290K\n- Premier League - 100K upsell\n- 2 teams - 50K\n- 400K - Viaplay new scope (main deal in pipeline on entire sum)\n- + 3 150± K deals from pipeline","- eSports - 1M\n- EHF - 290K\n- Premier League - 100K upsell\n- Leverkusen - 50K\n- 400K - Viaplay new scope (main deal in pipeline on entire sum)\n- + 3 150± K deals","minus 100K of BC deals which won't close","- eSports - 1M\n- EHF - 290K\n- Premier League - 100K upsell\n- 400K - Viaplay new scope (main deal in pipeline on entire sum)\n- + 4 150± K deals","minus 100K best case wont close","- eSports - 1M\n- EHF - 250K\n- Premier League - 100K upsell\n- 3 clubs - 90K\n- 400K - Viaplay new scope (main deal in pipeline on entire sum)\n- + 3 150± K deals","Q3 Judgement (22/06):\n- Canal Renewal Growth - 200K\n- SPL money - 500K (1.5M renewal on pipeline)\n- ISU - 200K \n- Premier League upsell (100K) - (100 already in best on PL2, so just add another 100 to judgement)\n- Okko new money (FAST, VO, Scope) - 1M\n- 2 AI deals - (150K each) - 300K\n- LKL - 55K\n- World Rowing / World Atheltics - (just one of them) - 150K\n- LFP upsell - 50K\n- 4 Partnerbrite deals - 175K\n- 2 more 75K deals - 150","3,060,000 - previous Q judgement\n+ \n1M from pipeline deals","- Canal Renewal Growth: +150K\n- SPL money: -1M (renewal of 1.5 on BC) - realistically will be 500K if at all  \n- Okko new money (VO, Scope): +200K (larger FAST opp to be calculated in Q4)\n- 2 AI deals - (150K each): +300K\n\nNew Business: \n- Esports - moved to BC: -300K in judgement\n- ISU + World Rowing: -150K (both in BC, only one will close)\n- UWCL Disney moved to BC (in order to represent Poland LaLiga expansion opp)\n- LFP BPOA in BC - pending available budgets: -50K\n- LKL - 55K\n- 1 more new deal: +75k\n- 3 PB opps moved into BC while all other PB opps, left in pipeline, assuming three (any three) would close this Q. The total of the 3 above represents that, in which any form they might come","+500k pipeline deals\n -1,960,000 Q3 Judgement brought over\n -500K from BC deals:\n- WTA moved to BC (604K): -300K in judgement\n- LaLiga VO moved to BC (233K):  -150K (no budgets)\n- 5 Partnerbrite deals moved to BC (250K) (Leeds, Newcastle, Atletico, PSG, EFL) - if not these specific ones, than other ones generating 200K. So -50K from judgement","BC deals which I want to decrease amount from\n- SPL - minus the 1.5\n- CME Renewal - minus 100K\n- SkyNews - won’t happen - minus 380K\n- Minus 400k from other BC deals which won’t convert   -2,380,000\n- Plus 300K - pipeline deals","+300K from pipeline deals","- Plus 300K - pipeline deals","+450K from pipeline deals","- Plus 200K - pipeline deals","+400K from pipeline deals","- Plus 100K - pipeline deals","+500K from pipeline deals","+700K from pipeline deals","************************\n*PREVIOUS UDGEMENT*\n************************\n-$150K Slipped from Best Case\n-$1300K ABC News\n==========\nTotal: -$1,450K","test","end of q"]};
+
+// Judgment notes: "+$1500K SPL", "- EHF - 290K", "additional pipeline"... split into lines with amounts
+/**
+ * Forecast judgment-note parser (browser, ES2020, no libraries, no regex lookbehind).
+ *
+ * parseJudgmentNote(note, judgmentValue)
+ *   -> { items: [{label, amount, key}], total, prevText, signInferred }
+ *   items        itemised lines of the CURRENT section only; amount in whole dollars, signed
+ *   total        amount on the first "Total:" line of the current section (null if absent/unparseable, e.g. "+$???")
+ *   prevText     text under a "PREVIOUS JUDGEMENT"/"PREVIOUS UDGEMENT" banner ('' if banner only), else null
+ *   signInferred true when no item had an explicit sign and all items were negated because their sum
+ *                was exactly -judgmentValue (e.g. "100K which won't close ..." with judgment -100000)
+ * The caller adds any "unitemised" remainder (judgmentValue - sum(items)); this function never does.
+ *
+ * Amount rules: K/k/thousand = 1e3, M/m/mm/mn/mil/million = 1e6; a number with no unit is scaled by
+ * magnitude (>= 10,000 -> dollars, 10..9,999 -> thousands, < 10 -> millions), so "$500" = 500K,
+ * "Total: +$1050" = 1.05M, "1,000,000" = 1M, "minus the 1.5" = -1.5M. Signs: attached + - (incl. unicode
+ * minus/dashes) or the words plus/minus. Percentages, dates (22/06), Q3/PL2-style tokens are never amounts.
+ */
+const JNOTE = (function () {
+  'use strict';
+
+  var UNIT = { k: 1e3, thousand: 1e3, m: 1e6, mm: 1e6, mn: 1e6, mil: 1e6, million: 1e6, millions: 1e6 };
+  var AMT_RE = /((?:plus|minus)\s+(?:the\s+)?|[+\-])?(\$\s?)?(\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)(?:\s*\u00B1?\s*(k|thousand|millions?|mil|mm|mn|m)(?![a-z0-9]))?(?![a-z0-9\/]|[.,]\d)/gi;
+
+  function normaliseText(s) {
+    return String(s)
+      .replace(/\r\n?/g, '\n')
+      .replace(/[\u2212\u2010\u2011\u2012\u2013\u2014\u2015\uFE58\uFE63\uFF0D]/g, '-')
+      .replace(/\uFF0B/g, '+')
+      .replace(/[\u00A0\u2007\u2009\u202F\u200B]/g, ' ')
+      .replace(/[\u2018\u2019\u2032]/g, "'");
+  }
+
+  function isBanner(line) { return /^[\s*=#_~\-]{3,}$/.test(line); }
+
+  function isPrevHeader(line) {
+    var s = line.replace(/[*=#_~\s]+/g, ' ').trim();
+    return /^previous\b/i.test(s) && !/\d/.test(s) && s.length <= 40;
+  }
+
+  function tokenize(s) {
+    var toks = [], m, depth, i;
+    AMT_RE.lastIndex = 0;
+    while ((m = AMT_RE.exec(s)) !== null) {
+      if (m.index > 0 && /[\w.,\/]/.test(s[m.index - 1])) { AMT_RE.lastIndex = m.index + 1; continue; } // Q3, PL2, 22/06
+      var end = m.index + m[0].length;
+      if (/^\s*%/.test(s.slice(end))) continue;                                   // percentage, not money
+      var raw = parseFloat(m[3].replace(/,/g, ''));
+      if (!isFinite(raw)) continue;
+      var unit = m[4] ? m[4].toLowerCase() : '';
+      var mult = unit ? UNIT[unit] : (raw >= 10000 ? 1 : raw >= 10 ? 1e3 : 1e6);
+      var signTxt = m[1] ? m[1].trim().toLowerCase() : '';
+      var sign = signTxt === '-' || signTxt.indexOf('minus') === 0 ? -1 : (signTxt ? 1 : 0);
+      for (depth = 0, i = 0; i < m.index; i++) { if (s[i] === '(') depth++; else if (s[i] === ')' && depth) depth--; }
+      toks.push({
+        start: m.index, end: end, text: m[0], raw: raw, isInt: m[3].indexOf('.') < 0,
+        amount: Math.round((sign || 1) * raw * mult),
+        signed: sign !== 0, unit: !!unit, dollar: !!m[2], inParens: depth > 0,
+        strong: sign !== 0 || !!unit || !!m[2] || raw >= 10000
+      });
+    }
+    return toks;
+  }
+
+  // split on " - " and ":" outside parentheses -> [{start, text}]
+  function segments(s) {
+    var out = [], depth = 0, segStart = 0, i, c;
+    for (i = 0; i < s.length; i++) {
+      c = s[i];
+      if (c === '(') depth++;
+      else if (c === ')' && depth) depth--;
+      else if (!depth && (c === ':' || (c === '-' && s[i - 1] === ' ' && s[i + 1] === ' '))) {
+        out.push({ start: segStart, text: s.slice(segStart, i) });
+        segStart = i + 1;
+      }
+    }
+    out.push({ start: segStart, text: s.slice(segStart) });
+    return out;
+  }
+
+  function cleanLabel(s) {
+    var parts = segments(s.replace(/\(\s*\)/g, ' '))
+      .map(function (p) { return p.text.replace(/\s+/g, ' ').trim(); })
+      .filter(function (t) { return t && !/^[+\-=:,.]+$/.test(t) && !/^[\d,.\s]+$/.test(t); });
+    var out = '';
+    parts.forEach(function (t) { out += !out ? t : (t[0] === '(' ? ' ' : ' - ') + t; });
+    return out
+      .replace(/[\s:=,\-]*[+\-]\$?\d[\d,]*(?:\.\d+)?\s*[kKmM]?\s*$/, '')     // trailing running subtotal
+      .replace(/^(?:[\s:=,.]|[+\-](?!\d+(?:\.\d+)?\s*%))+/, '')              // leading separators, keep "+10%"
+      .replace(/[\s\-:=,]+$/, '')
+      .trim();
+  }
+
+  function pickAmount(body) {
+    var toks = tokenize(body);
+    if (!toks.length) return null;
+    var i, j, t;
+
+    // 1. count x amount: "3 more 150K deals", "+ 4 150+-K deals", "2 more 75K deals - 150"
+    var cm = /^\+?\s*(\d{1,2})\s+(?:more\s+|x\s*|\u00D7\s*)?/i.exec(body);
+    if (cm && toks.length >= 2 && toks[0].isInt && !toks[0].strong && toks[0].raw <= 20 &&
+        toks[1].unit && !toks[1].signed && toks[1].start === cm[0].length) {
+      return { amount: toks[0].raw * toks[1].amount, label: cleanLabel(body), signed: false };
+    }
+    var pick = null;
+    // 2. first explicitly signed amount outside parentheses
+    for (i = 0; i < toks.length && !pick; i++) if (toks[i].signed && !toks[i].inParens) pick = toks[i];
+    // 3. "Label - Amount" / "Amount - Label": first segment that starts with an amount
+    if (!pick) {
+      var segs = segments(body);
+      for (j = 0; j < segs.length && !pick; j++) {
+        var at = segs[j].start + (segs[j].text.length - segs[j].text.replace(/^\s+/, '').length);
+        if (body[at] === '(') continue;
+        for (i = 0; i < toks.length; i++) {
+          t = toks[i];
+          if (t.start !== at || t.inParens) continue;
+          if (t.strong || (segs[j].text.trim() === t.text.trim() && t.raw >= 10)) pick = t;
+          break;
+        }
+      }
+    }
+    // 4. any strong amount outside parentheses, 5. a K/M/$ amount inside parentheses
+    for (i = 0; i < toks.length && !pick; i++) if (toks[i].strong && !toks[i].inParens) pick = toks[i];
+    for (i = 0; i < toks.length && !pick; i++) if (toks[i].unit || toks[i].dollar) pick = toks[i];
+    if (!pick) return null;
+    return { amount: pick.amount, label: cleanLabel(body.slice(0, pick.start) + ' ' + body.slice(pick.end)), signed: pick.signed };
+  }
+
+  /** Grouping key: lower-case, no parentheticals, no percentages, no leading signs/counts/amounts, no punctuation. */
+  function normaliseLabel(label) {
+    return normaliseText(label || '')
+      .toLowerCase()
+      .replace(/\([^)]*\)/g, ' ')
+      .replace(/[+\-]?\s*\d+(?:[.,]\d+)?\s*%/g, ' ')
+      .replace(/^(?:[\s+\-:=*$\u2022\u00B7\u00B1\u00D7]|(?:plus|minus|more|x)\s|\d[\d,]*(?:\.\d+)?\s*\u00B1?\s*(?:k|m|mm)?(?![a-z]))+/, '')
+      .replace(/\$/g, ' ')
+      .replace(/[^a-z0-9&\/ ]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  function parseJudgmentNote(note, judgmentValue) {
+    var out = { items: [], total: null, prevText: null, signInferred: false };
+    if (note == null || !String(note).trim()) return out;
+
+    var lines = normaliseText(note).split('\n'), cut = -1, i;
+    for (i = 0; i < lines.length; i++) if (isPrevHeader(lines[i])) { cut = i; break; }
+    var cur = lines;
+    if (cut >= 0) {
+      cur = lines.slice(0, cut);
+      var prev = lines.slice(cut + 1);
+      while (prev.length && (!prev[0].trim() || isBanner(prev[0]))) prev.shift();
+      out.prevText = prev.join('\n').trim();
+    }
+
+    var groupSkip = false, anySigned = false;
+    for (i = 0; i < cur.length; i++) {
+      var line = cur[i].trim();
+      if (!line || isBanner(line)) { groupSkip = false; continue; }
+      var bullet = /^[-*\u2022\u00B7]\s+/.test(line);
+      if (groupSkip && bullet) continue;               // breakdown lines under "-500K from BC deals:"
+      groupSkip = false;
+
+      var tm = /^(?:[-*\u2022\u00B7]\s*)?(?:grand\s+|sub-?)?total\b\s*[:=\-]?\s*(.*)$/i.exec(line);
+      if (tm) {
+        if (out.total === null) { var ta = pickAmount(tm[1]); if (ta) out.total = ta.amount; }
+        continue;
+      }
+      var body = line.replace(/^(?:[-*\u2022\u00B7]\s+)+/, '');
+      var a = pickAmount(body);
+      if (!a) continue;                                // header / commentary
+      if (a.signed) anySigned = true;
+      out.items.push({ label: a.label, amount: a.amount, key: normaliseLabel(a.label) });
+      if (/:\s*$/.test(body)) groupSkip = true;
+    }
+
+    if (out.items.length && !anySigned && typeof judgmentValue === 'number' && judgmentValue !== 0) {
+      var sum = out.items.reduce(function (s, it) { return s + it.amount; }, 0);
+      if (Math.abs(sum + judgmentValue) < 0.5) {
+        out.items.forEach(function (it) { it.amount = -it.amount; });
+        out.signInferred = true;
+      }
+    }
+    return out;
+  }
+
+  return {parse: parseJudgmentNote, key: normaliseLabel};
+})();
+
+// Shaka marks some submissions with a judgment of 1 or 2; those mean none
+const jv = j => Math.abs(j || 0) <= 10 ? 0 : j;
+let rzMemo = new Map();
+const rzQuarters = view => {
+  const qs = new Set(((RAZIELI.leads[view] || {}).subs || []).map(s => s[1]));
+  for (const q in RAZIELI.current) if (RAZIELI.current[q][view]) qs.add(q);
+  return [...qs];
 };
-const JUDGMENT = {
-  co: JUDGMENT_CO,
-  // region leads' notes keep no previous section; `prev` is the judgment from our own earlier copy of Razieli
-  na: {"Q4-2026": {val: 1000000, prev: 1000000, submitted: "2026-10-12", submittedAt: "2026-10-12T14:24:09Z", prevSubmitted: "2026-10-05", items: [["1,000,000 for Q4", 1000000, 1000000]]},
-       "Q3-2026": {val: 200000, prev: null, submitted: "2026-09-28", submittedAt: "2026-09-28T14:21:16Z", items: [["additional pipeline", null, 200000]]},
-       "Q1-2027": {val: 1000000, prev: null, submitted: "2026-10-12", submittedAt: "2026-10-12T14:27:54Z", items: [["Q1", null, 1000000]]}},
-  emea: {"Q4-2026": {val: 700000, prev: 500000, submitted: "2026-10-13", submittedAt: "2026-10-13T13:32:30Z", prevSubmitted: "2026-09-27", items: [["Pipeline deals (\"+700K from pipeline deals\"; was \"+500K\")", 500000, 700000]]}},
-  apac: {}
-};
-const judgmentFor = id => { const j = (JUDGMENT[V().key] || {})[id]; return j && (Math.round(j.val / 1000) || Math.round((j.prev || 0) / 1000)) ? j : null; };
-// Which judgment was in effect at the start (start of day) and end (end of day) of the range: "cur", "prev", or null when unknown
-function judgmentRange(J, d0, d1) {
-  const at = (d, endOfDay) => (endOfDay ? d >= J.submitted : d > J.submitted) ? "cur"
-    : J.prev != null && J.prevSubmitted && (endOfDay ? d >= J.prevSubmitted : d > J.prevSubmitted) ? "prev" : null;
-  return {start: at(d0, false), end: at(d1, true)};
+// The lead's submissions for one quarter, oldest first: [ms, forecast, judgment, note index]. Razieli's history sometimes misses
+// a lead's latest submission; the rollup still has it (timed a few seconds before its snapshot), so it's added back from there.
+function rzSubs(view, q) {
+  const k = view + "|" + q;
+  if (rzMemo.has(k)) return rzMemo.get(k);
+  const L = RAZIELI.leads[view], out = L ? L.subs.filter(s => s[1] === q).map(s => [s[0], s[2], jv(s[3]), s[4]]) : [];
+  const c = (RAZIELI.current[q] || {})[view];
+  if (c && !out.some(s => s[0] > c[0] + 60000 || (s[0] >= c[0] - 1000 && s[1] === c[1] && s[2] === jv(c[2]) && s[3] === c[3]))) out.push([c[0], c[1], jv(c[2]), c[3]]);
+  out.sort((a, b) => a[0] - b[0]);
+  rzMemo.set(k, out);
+  return out;
+}
+// The submission behind a forecast submitted at moment t: the latest at or before it, with a minute's leeway because Snowflake's
+// and Razieli's timestamps for the same submission differ by seconds
+function rzSubAt(view, q, t) { let s = null; for (const x of rzSubs(view, q)) if (x[0] <= t + 60000) s = x; return s; }
+const rzNote = s => s && s[3] >= 0 ? RAZIELI.notes[s[3]] || "" : "";
+const rzSource = long => RAZIELI.live ? (long ? "Read live from Razieli" : "live from Razieli")
+  : `${long ? "Copied" : "copied"} from Razieli ${long ? "on " + dmy(RAZIELI.asOf.slice(0, 10)) : dmy(RAZIELI.asOf.slice(0, 10)).slice(0, -5)}`;
+// A submission's judgment split into the lines of its note, [{label, key, amount}]; what the lines don't account for is one more
+// line (a note without amounts becomes a single line with the note's text)
+function noteItems(s) {
+  if (!s || !s[2]) return [];
+  const note = rzNote(s), items = JNOTE.parse(note, s[2]).items.map(it => ({label: it.label ? it.label[0].toUpperCase() + it.label.slice(1) : "(no label)", key: it.key, amount: it.amount}));
+  const rest = s[2] - sum(items, it => it.amount);
+  if (Math.round(rest / 1000)) items.push({key: "\u0000rest", amount: rest, label: items.length ? "Not itemised (the note's lines don't add up to the judgment)"
+    : note.split("\n").map(l => l.trim()).filter(Boolean).join(" · ").slice(0, 160) || "No note"});
+  return items;
+}
+// The judgment that went with the forecast submitted at t1 (cur) and, when t0 is given, with the one submitted at t0 (prev):
+// {val, submitted, submittedAt, prev, prevSubmitted, same, items: [[label, prev, cur]]}. null when Razieli has no submission at
+// t1, or neither has a judgment.
+function judgmentFor(id, t1, t0) {
+  const c = rzSubAt(V().key, id, t1), p = t0 == null ? null : rzSubAt(V().key, id, t0);
+  if (!c || (!Math.round(c[2] / 1000) && !(p && Math.round(p[2] / 1000)))) return null;
+  const ci = noteItems(c), pi = p ? noteItems(p) : null, rows = [], open = new Map();
+  for (const it of ci) { const r = [it.label, pi ? 0 : null, it.amount]; rows.push(r); if (!open.has(it.key)) open.set(it.key, []); open.get(it.key).push(r); }
+  for (const it of pi || []) { const r = (open.get(it.key) || []).shift(); if (r) r[1] = it.amount; else rows.push([it.label, it.amount, 0]); }
+  return {val: c[2], submitted: iso(new Date(c[0])), submittedAt: c[0], prev: p ? p[2] : null, prevSubmitted: p ? iso(new Date(p[0])) : null,
+    same: !!p && p[0] === c[0], items: rows};
 }
 
 /* ---------- forecast accuracy data ---------- */
-// Every forecast submission per lead and quarter, from Razieli get_judgment_history, copied ACC_AS_OF (not live).
-// subs: [submitted at (ms, UTC), Forecast (the number the lead entered, not best case), judgment].
-// closed: Razieli's closed ARR at the quarter end (closed so far, for a quarter that isn't over).
-// Razieli puts region leads' deals by the owner's reporting line, not by account region.
-// Left out as obvious typos: Shaka's 17 Jun 2026 Q3 submission ($0) and Daniel's 23 Jun 2026 Q3 submission ($1.0M).
-const ACC_AS_OF = "2026-10-14";
-const ACCURACY = {"co":{"Q2-2026":{"closed":126583088,"subs":[[1780432210066,126460147,0],[1780432249629,127000000,0],[1780432536503,127000000,0],[1780432575399,127000000,0],[1780952678935,127000000,0],[1780952833911,127200000,0],[1781620967316,127200000,0],[1781623760506,127200000,-1350000],[1781623809294,127200000,1],[1781623846985,127200000,-1350000],[1781624032241,127200000,1],[1781625137801,127200000,1],[1781625141999,127200000,2],[1781714996344,127250000,2],[1781718319297,127250000,2],[1781718396358,127200000,-1100000],[1782309783112,127200000,-1100000]]},"Q3-2026":{"closed":130479070,"subs":[[1780434436209,135000000,0],[1780953069526,135000000,0],[1780953093079,135000000,0],[1780953152620,135000000,0],[1780955205912,135000000,0],[1780955357310,135000000,0],[1780955518628,134800000,0],[1781625081315,134800000,0],[1781625623929,135800000,0],[1781713820228,136500000,0],[1781715277156,136500000,-350000],[1781718534348,136500000,-300000],[1781718557870,136500000,-350000],[1782329314470,136500000,-350000],[1782329724422,136500000,-1000000],[1782329766939,136500000,-350000],[1782329768325,136500000,-1000000],[1783459056477,135500000,-1000000],[1783464313119,135500000,-1000000],[1783464568605,135500000,750000],[1783465162767,135500000,750000],[1783466331998,137500000,350000],[1783625389401,137100000,350000],[1783625402849,137100000,450000],[1783625541239,137600000,-400000],[1784057485478,136750000,-550000],[1784057495169,136750000,-550000],[1784653029153,135150000,-450000],[1785291747588,135900000,-625000],[1785891694524,135700000,-675000],[1786460814184,134900000,-675000],[1786461297209,134900000,-150000],[1786461328065,134900000,-150000],[1786626359678,134750000,350000],[1786626365569,134750000,350000],[1786626371694,134750000,350000],[1786626381345,134750000,350000],[1786626392957,134750000,350000],[1786626403648,134750000,350000],[1786626465462,134750000,350000],[1787084445852,135600000,350000],[1787085732750,135600000,200000],[1787085834330,135600000,200000],[1787086291229,135600000,200000],[1787086295005,135600000,200000],[1787086309997,135600000,200000],[1787086320271,135600000,200000],[1787688619868,134600000,175000],[1787688729760,134900000,175000],[1788297010053,134900001,175000],[1788297033014,134900001,175000],[1788885486013,135000001,25000],[1788885689780,135000001,25000],[1790118231673,134050000,25000],[1790118250579,134050000,1],[1790683322385,133000000,1]]},"Q4-2026":{"closed":117313679,"subs":[[1782329887233,138758525,0],[1782330431148,138758525,0],[1783465909184,138758525,0],[1783466362667,138758525,0],[1783466534951,138758525,1050000],[1783466564177,138758525,1150000],[1783466929364,138758525,1150000],[1783467405548,138758525,1150000],[1783467507134,138758525,3000000],[1783467920753,138758525,1150000],[1783497461971,148000000,3000000],[1783498810672,147300000,3000000],[1783498821363,147300000,3000000],[1783527446222,147300000,2300000],[1783530459983,146600000,1450000],[1783625696997,145800000,3800000],[1784055106824,145850000,3450000],[1784059970688,145850000,3900000],[1784060296849,145650000,4400000],[1784060350040,146000000,4400000],[1784060359502,146000000,4400000],[1785292220350,146000000,3650000],[1785292232342,146000000,3650000],[1785893061450,146000000,2530000],[1785893142103,146000000,2530000],[1786460846831,145750000,2530000],[1786461882090,145750000,2000000],[1786461896200,145750000,2000000],[1786461940637,145750000,2000000],[1786461953414,145750000,2000000],[1786609906425,145850000,1750000],[1786609925764,145850000,1750000],[1786609931632,145850000,1750000],[1786609968463,145850000,1750000],[1786609980739,145850000,1750000],[1787084479100,145600000,1750000],[1787086839589,145600000,950000],[1787086878220,145600000,950000],[1787086888247,145600000,950000],[1787690909286,145600000,1050000],[1787690991671,145600000,1350000],[1787690997980,145600000,1350000],[1787691495973,145600000,1850000],[1787691549047,144600000,1850000],[1788297257960,144450000,1650000],[1788297286775,144450000,1650000],[1788297634009,144450000,1650000],[1788297714379,144450000,1900000],[1788297727366,144450000,1900000],[1788887136136,144000000,2350000],[1788887355368,144000000,2350000],[1788887419180,144000000,2350000],[1790121566964,144000000,2225000],[1790121618599,144000000,2225000],[1790685465843,143600000,2350000],[1791302352207,143350000,2850000],[1791302428756,143350000,3350000],[1791302463230,143350000,3350000]]}},"na":{"Q2-2026":{"closed":67983391,"subs":[[1780936815430,65117098,-168000],[1780936835944,65117098,-168000],[1781527768485,65773016,-168000],[1782739731847,65454516,-168000],[1782756080141,65195016,-168000]]},"Q3-2026":{"closed":71282153,"subs":[[1780937086150,70732831,1000000],[1782740398578,68868749,1000000],[1782756191831,72105749,1000000],[1783623710132,72711254,1000000],[1783950668225,72685754,1000000],[1784557605091,73476129,1000000],[1785179382033,73179021,1000000],[1785866631364,72662410,1000000],[1786385383690,72662410,1000000],[1787061046529,72603868,1000000],[1787578450054,72296868,1000000],[1788270271567,72296868,200000],[1788545428612,71738429,200000],[1790081349006,71594412,200000],[1790605294859,71538653,200000]]},"Q4-2026":{"closed":63381812,"subs":[[1783359178327,73484539,2000000],[1783950885368,76981895,2000000],[1784564527820,75169395,2000000],[1785866679143,75700148,1700000],[1787062622521,74368235,1000000],[1787579104611,74275104,1000000],[1788270705086,74444104,1000000],[1788545568272,75038665,1000000],[1790082738927,75937128,1000000],[1790605496890,75778202,1000000],[1791211740925,76068816,1000000],[1791815056882,76479045,1000000]]},"Q1-2027":{"closed":57100247,"subs":[[1791815145766,75900500,0],[1791815284303,75900500,1000000]]}},"emea":{"Q2-2026":{"closed":48142222,"subs":[[1780819462074,50209337,0],[1780823987086,50209337,1900000],[1780824505685,50209337,2300000],[1780824625865,50209337,0],[1780828278457,50209337,-100000],[1780828345812,50209337,0],[1780828389774,50209337,-100000],[1780828402290,50300000,-100000],[1780828421158,50300000,0],[1780836947388,50300000,-100000],[1780836971711,50308271,-100000],[1780837073260,50308271,2300000],[1780837109993,50308271,2300000],[1780840523022,50308271,0],[1780840538158,50308271,-100000],[1780840637837,50308271,2400000],[1780840755541,50308271,0],[1780903608993,50308271,-100000],[1781680304277,50200000,-100000],[1782113589629,50200000,0]]},"Q3-2026":{"closed":47970461,"subs":[[1780904040355,50190862,2300000],[1782120658404,48735251,0],[1783242373551,51116748,2835000],[1783673585117,55594350,3060000],[1784460764417,52126492,-2080000],[1785076997626,50786117,300000],[1785660502408,50708083,300000],[1786265060371,50880429,300000],[1788778600862,50406919,400000],[1789547422766,50632000,200000],[1790077096978,50632000,200000],[1790077109629,50632000,100000],[1790489749155,50044138,0],[1790490690417,49567714,0]]},"Q4-2026":{"closed":43053212,"subs":[[1783245894447,54041177,4100000],[1783677999499,52654769,-1960000],[1784465572462,56549901,300000],[1785662335839,54163974,300000],[1786272214794,54631948,450000],[1788852258913,53759725,400000],[1789547443469,52106054,400000],[1790490812341,52106054,400000],[1790491379236,52106054,500000],[1791898170516,51523560,700000],[1791898250207,51523560,700000],[1791898360512,50500000,700000]]}},"apac":{"Q3-2026":{"closed":11226456,"subs":[[1783897909567,11466339,0],[1784508359923,11290000,0],[1785721628488,11290000,0],[1786173637191,11330000,0],[1786914779911,11460000,0],[1789007672356,11400000,0],[1790061975232,11450000,0],[1790554646231,11480000,0]]},"Q4-2026":{"closed":10878655,"subs":[[1790311930725,12100000,0]]}}};
+// Each lead's Forecast (the number they enter, not best case) at every submission per quarter made before the quarter ended,
+// against the quarter's closed ARR
+// (closed so far for a quarter that isn't over): {view: {"Q4-2026": {closed, subs: [[ms, forecast, judgment]]}}}. A submission
+// whose Forecast is zero, equals its judgment, or is under half or over twice the lead's median for the quarter is a typo and
+// is left out (ACC_SKIPPED). Razieli groups region leads' deals by the owner's reporting line, not by account region.
+let ACCURACY = {}, ACC_SKIPPED = [], ACC_AS_OF = "";
+function buildAccuracy() {
+  ACC_AS_OF = RAZIELI.asOf.slice(0, 10); ACCURACY = {}; ACC_SKIPPED = [];
+  for (const v of VIEWS) for (const q of rzQuarters(v.key)) {
+    const qEndMs = Date.parse(accQ1(q) + "T23:59:59Z"), closed = (RAZIELI.closed[q] || {})[v.key], subs = rzSubs(v.key, q).filter(s => s[0] <= qEndMs);
+    if (closed == null || !subs.length) continue;
+    const fs = subs.map(s => s[1]).filter(f => f > 0).sort((a, b) => a - b), med = fs.length ? fs[fs.length >> 1] : 0;
+    const good = subs.filter(s => {
+      const bad = !(s[1] > 0) || (s[1] === s[2] && s[2] !== 0) || (med > 0 && (s[1] < med / 2 || s[1] > med * 2));
+      if (bad) ACC_SKIPPED.push({view: v.key, q, t: s[0], forecast: s[1]});
+      return !bad;
+    });
+    if (good.length) (ACCURACY[v.key] = ACCURACY[v.key] || {})[q] = {closed, subs: good.map(s => [s[0], s[1], s[2]])};
+  }
+}
+function setRazieli(d) { RAZIELI = d; rzMemo = new Map(); buildAccuracy(); }
 
 /* ---------- small helpers ---------- */
 const $ = id => document.getElementById(id);
@@ -647,11 +878,10 @@ function stepVal(k) {
 }
 const fc = (st, vp) => WON.includes(st) || st === "Closed Lost" ? st : (vp || "Unassigned");
 
-// Judgment in effect on a date, for the all-products view only (it has no product split)
-function judgmentOn(date) {
-  const J = !S.sel ? judgmentFor(periodById($("period").value).id) : null;
-  const w = J && judgmentRange(J, date, date).end;
-  return w ? {J, which: w, val: w === "cur" ? J.val : J.prev, date: w === "cur" ? J.submitted : J.prevSubmitted} : null;
+// Judgment that went with the forecast submitted at moment t, for the all-products view only (it has no product split)
+function judgmentOn(t) {
+  const J = !S.sel ? judgmentFor(periodById($("period").value).id, t) : null;
+  return J && Math.round(J.val / 1000) ? {J, which: "cur", val: J.val, date: J.submitted} : null;
 }
 // Deals in the forecast (won, or open Commit / Best Case) at moment T (null = now), with their status then
 function snapItems(period, T) {
@@ -675,7 +905,7 @@ function renderSnapBlock(elId, key, cfg) {
     return {k, lab: d[0], col: d[2], val: sum(its, sv), sub: `${its.filter(it => sv(it) > 0).length} deals`};
   });
   const deals = sum(parts, p => p.val);
-  if (jn) parts.push({k: "judg", lab: `${V().lead}'s judgment`, col: "--judg", val: jn.val, sub: `submitted ${dmy(jn.date).slice(0, -5)} · copied from Razieli ${dmy(JUDGMENT_AS_OF).slice(0, -5)}`, judg: true});
+  if (jn) parts.push({k: "judg", lab: `${V().lead}'s judgment`, col: "--judg", val: jn.val, sub: `submitted ${dmy(jn.date).slice(0, -5)} · ${rzSource(false)}`, judg: true});
   const t = sum(parts, p => p.val), won = parts[0].val;
   // a negative judgment has no width in a stacked bar, so it shows in the legend only
   const span = sum(parts, p => Math.max(0, p.val));
@@ -732,7 +962,7 @@ function snapDetail(key, cfg) {
     if (!jn) { S.snapSel[key] = null; return ""; }
     const col = jn.which === "cur" ? 2 : 1;
     return `<div class="dh"><h3>${V().lead}'s judgment ${esc(cfg.onLabel)}: ${signed(jn.val)}</h3><button type="button" class="close">Close</button></div>` +
-      `<p class="note" style="margin-bottom:8px">${V().leadFull}'s ${V().role} judgment in Razieli, submitted ${dmy(jn.date)}, added on top of won + Commit + Best Case. Snapshot taken ${dmy(JUDGMENT_AS_OF)}.</p>` +
+      `<p class="note" style="margin-bottom:8px">${V().leadFull}'s ${V().role} judgment in Razieli, submitted ${dmy(jn.date)}, added on top of won + Commit + Best Case. ${rzSource(true)}.</p>` +
       `<div class="scroll"><table><thead><tr><th>Item</th><th class="n">Amount</th></tr></thead><tbody>` +
       jn.J.items.filter(it => it[col]).map(it => `<tr><td>${esc(it[0])}</td><td class="n ${it[col] < 0 ? "neg" : "pos"}">${signed(it[col])}</td></tr>`).join("") +
       `<tr class="tot"><td>Total</td><td class="n">${signed(jn.val)}</td></tr></tbody></table></div>`;
@@ -751,13 +981,12 @@ const slackPeriod = p => { const m = String(p).match(/^(\d{4})_Q(\d)$/); return 
 // End of the compare range as a moment: null = now (end date is today), else the end of that day
 const endMoment = d1 => d1 >= todayISO() ? null : Date.parse(d1 + "T00:00:00Z") + DAY - 1;
 // Moment of the lead's latest submission for the selected period at or before `upTo` (ms, null = now):
-// their last #forecast-update post for it, or Razieli's submit time
+// their last #forecast-update post for it, or their latest Razieli submission
 function lastForecast(period, upTo) {
   const pk = period.id.replace("-", " "), lim = upTo == null ? Date.now() : upTo, who = V().slack;
   let t = null;
   for (const s of S.subList) if (s.ms && s.ms <= lim && who.test(s.user) && slackPeriod(s.period) === pk && (t == null || s.ms > t)) t = s.ms;
-  const J = (JUDGMENT[V().key] || {})[period.id], jt = J && J.submittedAt ? Date.parse(J.submittedAt) : null;
-  if (jt && jt <= lim && (t == null || jt > t)) t = jt;
+  for (const s of rzSubs(V().key, period.id)) if (s[0] <= lim && (t == null || s[0] > t)) t = s[0];
   return t;
 }
 const fmtWhen = t => new Date(t).toLocaleString("en-GB", {day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit"});
@@ -769,7 +998,13 @@ const fmtWhen = t => new Date(t).toLocaleString("en-GB", {day: "numeric", month:
 const SNOW_SERVER = "Snowflake";
 const SNAP = {lists: {}, data: {}, busy: new Set(), err: null, stubs: new Map()};
 async function snow(sql) {
-  const res = await S.mcp.callTool(SNOW_SERVER, "sql_exec", {sql}, {cache: CACHE});
+  let res;
+  try { res = await S.mcp.callTool(SNOW_SERVER, "sql_exec", {sql}, {cache: CACHE}); }
+  catch (e) {
+    if (!(e && e.retryable)) throw e;
+    await new Promise(r => setTimeout(r, Math.min(e.retryAfterMs || 2000, 60000)));
+    res = await S.mcp.callTool(SNOW_SERVER, "sql_exec", {sql}, {cache: CACHE});
+  }
   let p = res.payload;
   if (typeof p === "string") { try { p = JSON.parse(p); } catch (e) { throw {code: "tool_error", message: p.slice(0, 300)}; } }
   const rs = p && p.result_set;
@@ -851,13 +1086,12 @@ function renderForecastTab(period, d1) {
     ["fcProdTable", "fcAllTable"].forEach(id => $(id).innerHTML = ""); $("fcAllSummary").textContent = "All deals in the forecast";
     return;
   }
-  const items = data ? snapItemsFrom(data) : snapItems(period, T), jn = judgmentOn(iso(new Date(T))), J = !S.sel && judgmentFor(period.id);
+  const items = data ? snapItemsFrom(data) : snapItems(period, T), jn = judgmentOn(T);
   renderSnapBlock("snapFc", "fc", {
     title: `${V().lead}'s forecast, ${fmtWhen(T)}`, fileTag: `forecast-${V().key}-${period.id}-${iso(new Date(T))}`,
     note: `${V().leadFull}'s last ${q} submission on or before ${dmy(d1)} (the compare end date). Won and committed deals plus open Commit and Best Case (Next Q included), ` +
       (data ? "exactly as Razieli saved them at submission (Snowflake submission snapshot)." : `with each deal's status and ARR rebuilt from Salesforce history, because ${F.bad ? "Razieli's saved snapshot for this submission in Snowflake is corrupted (its ARR is many times too high)" : SNAP.err ? "Snowflake couldn't be read" : "Snowflake has no saved snapshot for this submission"}.`) +
-      (S.sel ? ` ${V().lead}'s judgment is hidden while a product filter is on, since it has no product split.`
-        : !jn && J ? ` Razieli keeps only ${V().lead}'s current${J.prevSubmitted ? " and previous" : ""} judgment (${dmy(J.submitted)}${J.prevSubmitted ? ` and ${dmy(J.prevSubmitted)}` : ""}), so there is none for this forecast.` : ""),
+      (S.sel && judgmentFor(period.id, T) ? ` ${V().lead}'s judgment is hidden while a product filter is on, since it has no product split.` : ""),
     items, jn, onLabel: "in this forecast"
   });
   const agg = {};
@@ -943,6 +1177,11 @@ function accChart(v, st, q, t0, t1) {
 }
 function renderAccuracy() {
   const qs = accQuarters();
+  if (!qs.length) {
+    $("accTitle").textContent = "Forecast accuracy"; $("accNote").textContent = RAZIELI.loading ? "Loading every lead's submissions from Razieli…" : S.rzErr || "No forecast history from Razieli.";
+    ["accQs", "accTable", "accExport", "accCharts", "accHist", "accChartsNote"].forEach(id => $(id).innerHTML = "");
+    return;
+  }
   let q = S.accq || store.get("accq", null);
   if (!qs.includes(q)) q = [...qs].reverse().find(accDone) || qs[qs.length - 1];
   const done = accDone(q), cur = V().key, rows = VIEWS.map(v => ({v, st: accStats(v.key, q)})), have = rows.filter(r => r.st);
@@ -954,7 +1193,9 @@ function renderAccuracy() {
   $("accNote").textContent = `Each lead's Forecast in Razieli (the number they enter, not best case), against the ARR the quarter ${done ? "closed at" : "has closed so far"}, per Razieli. ` +
     (done ? `Last forecast is their final submission before the quarter ended. Average miss and bias use their last submission of each week inside the quarter; bias shows whether they tend to forecast over or under.`
       : `${qName(q)} isn't over, so the gap is what's still to close, not a miss. Closed so far is as of ${dmy(ACC_AS_OF)}.`) +
-    (hist0 > Date.parse(accQ0(q) + "T00:00:00Z") ? ` Razieli's submission history starts on ${dmy(iso(new Date(hist0)))}, so ${qName(q)} covers only part of the quarter.` : "");
+    (hist0 > Date.parse(accQ0(q) + "T00:00:00Z") ? ` Razieli's submission history starts on ${dmy(iso(new Date(hist0)))}, so ${qName(q)} covers only part of the quarter.` : "") +
+    ACC_SKIPPED.filter(s => s.q === q).map((s, i, a) => `${i ? (i === a.length - 1 ? " and " : ", ") : " Left out as typos: "}${VIEWS.find(v => v.key === s.view).leadFull}'s ${fmt(s.forecast)} on ${dayMonth(s.t)}${i === a.length - 1 ? "." : ""}`).join("") +
+    ` Submissions ${rzSource(false)}.`;
   $("accTable").innerHTML = `<thead><tr><th>Lead</th><th class="n">Submissions</th><th class="n">First forecast</th><th class="n">Last forecast</th><th class="n">${done ? "Closed" : "Closed so far"}</th>` +
     `<th class="n">${done ? "Last vs closed" : "Still to close"}</th><th class="n">Average miss</th><th class="n">Bias</th></tr></thead><tbody>` +
     rows.map(({v, st}) => !st ? `<tr${trc(v)}><td>${lead(v)}</td><td colspan="7" class="muted">No forecasts for ${esc(qName(q))} in Razieli</td></tr>` :
@@ -968,7 +1209,7 @@ function renderAccuracy() {
   if (S.dl) $("accCsv").addEventListener("click", e => exportAccuracy(e.currentTarget));
   $("accChartsTitle").textContent = `${qName(q)} forecast over time`;
   $("accChartsNote").textContent = `Blue steps are the lead's Forecast at each submission (hover a dot for the time, the number and the judgment); the dashed green line is what the quarter ${done ? "closed at" : "has closed so far"}; the shaded band is the quarter itself.` +
-    (done ? "" : ` The dotted line marks ${dmy(ACC_AS_OF)}, when this was copied from Razieli.`);
+    (done ? "" : RAZIELI.live ? " The dotted line marks today." : ` The dotted line marks ${dmy(ACC_AS_OF)}, when this was copied from Razieli.`);
   const t1 = Date.parse(accQ1(q) + "T23:59:59Z"), t0 = Math.min(Date.parse(accQ0(q) + "T00:00:00Z"), ...have.map(r => Math.floor(r.st.first[0] / DAY) * DAY)) - 3 * DAY;
   $("accCharts").innerHTML = rows.map(({v, st}) => `<div class="acccard${v.key === cur ? " cur" : ""}"><h3>${esc(v.label)} · ${esc(v.leadFull)}</h3>` + (!st ? `<p class="sub">No forecasts for ${esc(qName(q))} in Razieli.</p>` :
     `<p class="sub">${done ? `Last forecast ${fmt(st.last[1])} on ${dayMonth(st.last[0])}, ${overUnder((st.last[1] - st.C) / st.C)} against the ${fmt(st.C)} it closed at.`
@@ -1049,8 +1290,7 @@ function bridgeContext(period, d0, d1) {
   const D0 = G0 && G0.snap ? snapData(G0.snap, period) : null, D1 = G1 && G1.snap ? snapData(G1.snap, period) : null;
   if ((G0 && G0.snap && !D0) || (G1 && G1.snap && !D1)) return {mode: "fc", ok: false, title: "Forecast movement", missing: `Loading ${V().lead}'s saved submissions from Snowflake…`};
   const F0 = G0 && G0.t, F1 = G1 && G1.t;
-  const day = F => iso(new Date(F)), J = !S.sel ? judgmentFor(period.id) : null;
-  const which = F => J ? judgmentRange(J, day(F), day(F)).end : null;
+  const day = F => iso(new Date(F)), J = !S.sel && F0 && F1 ? judgmentFor(period.id, F1, F0) : null;
   const when = F => fmtWhen(F).replace(/ \d{4},/, ",");
   const extra = [];
   [D0, D1].forEach(D => D && D.forEach(d => { if (!S.oppMap.has(d.id) && !extra.some(o => o.id === d.id)) extra.push(snapStub(d)); }));
@@ -1061,7 +1301,7 @@ function bridgeContext(period, d0, d1) {
     title: F0 && F1 ? `Forecast from ${when(F0)} to ${when(F1)}` : "Forecast movement",
     what: `${V().lead}'s ${q} forecast (won plus open Commit and Best Case, deals as they stood at each submission, ${D0 && D1 ? "from Razieli's saved snapshots" : D0 || D1 ? "one end from Razieli's saved snapshot and the other rebuilt from Salesforce history" : "rebuilt from Salesforce history"}${(G0 && G0.bad) || (G1 && G1.bad) ? "; Razieli's saved snapshot for " + (G0 && G0.bad && G1 && G1.bad ? "both submissions is" : "the " + (G0 && G0.bad ? "starting" : "ending") + " submission is") + " corrupted in Snowflake, so it is rebuilt" : ""})`,
     missing: !F1 ? `No ${q} forecast submission found on or before ${dmy(d1)}.` : !F0 ? `No ${q} forecast submission found on or before ${dmy(d0)}, so there is nothing to compare from. Pick a later start date.` : "",
-    J, jr: J && F0 && F1 ? {start: which(F0), end: which(F1)} : null};
+    J, jr: J ? {start: J.prev == null ? null : J.same ? "cur" : "prev", end: "cur"} : null};
 }
 function renderBridge(ctx) {
   if (!ctx.ok) {
@@ -1127,9 +1367,8 @@ function renderBridge(ctx) {
     (jd ? (jr.start === "prev" && jr.end === "cur"
       ? ` ${V().lead}'s judgment went from ${signed(jd.prev)} (submitted ${dmy(jd.prevSubmitted)}) to ${signed(jd.val)} (submitted ${dmy(jd.submitted)}), so the forecast including judgment is ${full(today + jEnd)}.`
       : ` Adding ${V().lead}'s judgment of ${signed(jEnd)} (submitted ${dmy(jr.end === "cur" ? jd.submitted : jd.prevSubmitted)}) gives ${full(today + jEnd)}.` +
-        (jr.start === jr.end ? "" : ` Razieli keeps only the current and previous judgment, so there is none for the starting forecast and the judgment change can't be shown.`))
-    : jr0 ? ` Razieli keeps only ${V().lead}'s current${jAll.prevSubmitted ? " and previous" : ""} judgment (submitted ${dmy(jAll.submitted)}${jAll.prevSubmitted ? ` and ${dmy(jAll.prevSubmitted)}` : ""}), so there is none for this forecast.`
-    : ctx.mode === "fc" && S.sel && judgmentFor(periodById($("period").value).id) ? ` ${V().lead}'s judgment is hidden while a product filter is on, since it has no product split.`
+        (jr.start ? "" : ` Razieli has no submission behind the starting forecast, so its judgment and the change can't be shown.`))
+    : ctx.mode === "fc" && S.sel && ctx.F1 && judgmentFor(periodById($("period").value).id, ctx.F1) ? ` ${V().lead}'s judgment is hidden while a product filter is on, since it has no product split.`
     : ctx.mode === "pipe" ? ` ${V().lead}'s judgment is part of the forecast, so it is in the Forecast weekly snapshot tab's waterfall.` : "") +
     " Click any column to see the deals behind it.";
   const conv = sum(ROWS.filter(r => r.mv === "conv"), v1);
@@ -1180,7 +1419,7 @@ function renderDetail(bars, ctx) {
     const pick = (it, c) => c === "prev" ? it[1] : c === "cur" ? it[2] : it[2] - it[1];
     const tot = c => c === "prev" ? jd.prev : c === "cur" ? jd.val : jd.val - jd.prev;
     el.innerHTML = `<div class="dh"><h3>${title}</h3><button type="button" id="closeDetail">Close</button></div>` +
-      `<p class="note" style="margin-bottom:8px">${V().leadFull}'s ${V().role} judgment for ${esc(periodById($("period").value).short.replace(" YTD", ""))} from the Razieli judgment notes, added on top of won + Commit + Best Case. The current judgment was submitted ${dmy(jd.submitted)}${jd.prevSubmitted ? ` and the previous one ${dmy(jd.prevSubmitted)}` : ""}; Razieli keeps no judgment from before that. Snapshot taken ${dmy(JUDGMENT_AS_OF)}.</p>` +
+      `<p class="note" style="margin-bottom:8px">${V().leadFull}'s ${V().role} judgment for ${esc(periodById($("period").value).short.replace(" YTD", ""))} from the Razieli judgment notes, added on top of won + Commit + Best Case. The ending forecast's judgment was submitted ${dmy(jd.submitted)}${both ? `, the starting forecast's ${dmy(jd.prevSubmitted)}` : ""}. ${rzSource(true)}.</p>` +
       `<div class="scroll"><table><thead><tr><th>Item</th>${cols.map(c => `<th class="n">${head[c]}</th>`).join("")}</tr></thead><tbody>` +
       (b.key === "endj" ? `<tr><td>Deals ${esc(ctx.at1)} (won + Commit + Best Case)</td>${cols.map(c => c === "chg" ? "<td></td>" : `<td class="n">${full(today)}</td>`).join("")}</tr>` : "") +
       jd.items.map(it => `<tr><td>${esc(it[0])}</td>${cols.map(c => cell(pick(it, c))).join("")}</tr>`).join("") +
@@ -1409,7 +1648,9 @@ function errorBanner(e) {
     not_in_manifest: `Salesforce access is turned off for this page. Turn it on from the page's Permissions menu, then reload.`,
     blocked_by_policy: `Your organization's policy blocks this Salesforce query for your account.`,
     approval_required: `Your organization requires approval for this Salesforce tool, which pages can't request yet.`,
-    server_unavailable: `Salesforce didn't answer in time. Try Refresh in a minute.`,
+    server_unavailable: S.app && e && e.message ? `${e.message} Try Refresh in a minute.` : `Salesforce didn't answer in time. Try Refresh in a minute.`,
+    unauthenticated: (e && e.message) || "Your Google sign-in has expired. Reload the page.",
+    not_configured: `The dashboard app isn't fully set up: ${(e && e.message) || ""}`,
     tool_error: `Salesforce returned an error: ${(e && e.message) || ""}`,
     not_granted: `This view can't reach Salesforce. Open the dashboard in claude.ai to load live data.`,
     capability_disabled: `This view can't reach Salesforce. Open the dashboard in claude.ai to load live data.`
@@ -1426,6 +1667,7 @@ async function load(refresh) {
   const period = periodById($("period").value), d0 = loadFrom();
   if (!S.mcp) return;
   S.loading = true; refreshing = !!refresh; $("banner").innerHTML = "";
+  if (refresh && S.app) loadRazieli(true);
   document.body.setAttribute("data-loading", "");
   setStatus("stale", `Loading ${period.short} from Salesforce…`);
   $("apply").disabled = true;
@@ -1513,7 +1755,7 @@ function renderCal() {
   const p = $("calPanel"), v = S.cal.view, v2 = addMonths(v, 1), t = todayISO();
   const lastAllowed = [Number(t.slice(0, 4)), Number(t.slice(5, 7)) - 1], lo = minStart(), firstAllowed = [Number(lo.slice(0, 4)), Number(lo.slice(5, 7)) - 1];
   const cmp = (a, b) => a[0] - b[0] || a[1] - b[1];
-  const subNote = S.subsState === "ok" ? `<span class="calkey"><i></i> ${esc(V().leadFull)} submitted a forecast (hover for details)</span>` : S.subsState === "loading" ? `<span class="calkey">Loading ${esc(V().leadFull)}'s forecast days from Slack…</span>` : `<span class="calkey">${esc(S.subsMsg || "Couldn't read #forecast-update in Slack.")}</span>`;
+  const subNote = S.subsState === "ok" ? `<span class="calkey"><i></i> ${esc(V().leadFull)} submitted a forecast (hover for details)</span>` : S.subsState === "loading" ? `<span class="calkey">Loading ${esc(V().leadFull)}'s forecast days from ${S.app ? "Razieli" : "Slack"}…</span>` : `<span class="calkey">${esc(S.subsMsg || "Couldn't read #forecast-update in Slack.")}</span>`;
   p.innerHTML = `<div class="calhead"><button type="button" class="calnav" data-nav="-1" aria-label="Previous month" ${cmp(v, firstAllowed) <= 0 ? "disabled" : ""}>‹</button><span class="hint">${S.cal.a ? "Now pick the end date" : "Pick the start date, then the end date"}</span><button type="button" class="calnav" data-nav="1" aria-label="Next month" ${cmp(v2, lastAllowed) >= 0 ? "disabled" : ""}>›</button></div>` +
     `<div class="calmonths">${monthGrid(v[0], v[1])}${monthGrid(v2[0], v2[1])}</div>` +
     `<div class="calfoot"><div class="presets"><button type="button" data-pre="qstart">Quarter start → today</button><button type="button" data-pre="7">Last 7 days</button><button type="button" data-pre="30">Last 30 days</button><button type="button" data-pre="lastsub">Since ${esc(V().lead)}'s last update</button></div>${subNote}</div>`;
@@ -1590,10 +1832,59 @@ async function loadSubmissions() {
   if (S.loaded && !S.loading) { if (needsReload()) load(false); else render(); }
 }
 
+/* ---------- the Cloud Run app ---------- */
+// Every lead's submissions, read live from Razieli: forecast times, calendar dots, judgments and accuracy
+async function loadRazieli(refresh) {
+  try {
+    setRazieli(await window.FD_APP.razieli(refresh));
+    S.subList = subsFromRazieli(); S.subsMemo = {}; S.subsState = "ok"; S.rzErr = null;
+  } catch (e) {
+    // a failed refresh keeps the submissions already loaded
+    S.rzErr = `Couldn't read Razieli (${e && e.message || "no answer"})` + (RAZIELI.loading ? ", so judgments and forecast days are missing. Reload to try again." : "; showing what loaded earlier.");
+    if (RAZIELI.loading) { S.subsMsg = S.rzErr; S.subsState = "err"; setRazieli({...RAZIELI, loading: false}); }
+  }
+  renderAppBar();
+  if (S.cal) renderCal();
+  if (S.tab === "acc") renderAccuracy();
+  if (S.loaded && !S.loading) { if (needsReload()) load(false); else render(); }
+}
+// Razieli submissions in the shape of #forecast-update posts (Israel date and time), for the calendar
+function subsFromRazieli() {
+  const out = [], tz = {timeZone: "Asia/Jerusalem"};
+  for (const v of VIEWS) for (const q of rzQuarters(v.key)) for (const s of rzSubs(v.key, q)) {
+    const d = new Date(s[0]);
+    out.push({user: v.leadFull, date: d.toLocaleDateString("en-CA", tz), time: d.toLocaleTimeString("en-GB", {...tz, hour: "2-digit", minute: "2-digit"}),
+      ms: s[0], period: q.replace("-", " "), fc: full(s[1])});
+  }
+  return out;
+}
+// Snowflake is read with each viewer's own sign-in (SSO); after signing in, Snowflake sends them back with #snowflake=<result>
+async function loadAppSession() {
+  const h = decodeURIComponent((location.hash.match(/#snowflake=([^&]*)/) || [])[1] || "");
+  if (h) history.replaceState(null, "", location.pathname + location.search);
+  try { S.session = await window.FD_APP.session(); } catch (e) { S.session = null; }
+  S.sfMsg = h && h !== "connected" ? h : "";
+  renderAppBar();
+}
+function renderAppBar() {
+  const s = S.session && S.session.snowflake;
+  $("appBar").innerHTML = (S.rzErr ? `<div class="banner">${esc(S.rzErr)}</div>` : "") +
+    (S.sfMsg ? `<div class="banner">The Snowflake sign-in didn't complete: ${esc(S.sfMsg)}</div>` : "") + (!s ? ""
+    : !s.configured ? `<div class="banner info">Exact submission snapshots come from Snowflake, read with each viewer's own Snowflake sign-in, which isn't set up for this app yet. Until then each forecast is rebuilt from Salesforce history.</div>`
+    : !s.connected ? `<div class="banner info">Connect Snowflake to see each forecast exactly as it was submitted (Razieli's saved snapshots, read with your own Snowflake access). Until then each forecast is rebuilt from Salesforce history. <a class="btn primary" href="/oauth/snowflake/start" style="display:inline-block;margin-left:8px;text-decoration:none">Connect Snowflake</a></div>`
+    : `<p class="muted" style="font-size:13px;margin:0 0 12px">Snowflake: signed in${s.user ? ` as ${esc(String(s.user).toLowerCase())}` : ""}. <button type="button" class="btn" id="sfOut">Disconnect</button></p>`);
+  const b = $("sfOut");
+  if (b) b.addEventListener("click", async () => { try { await window.FD_APP.disconnectSnowflake(); } catch (e) {} location.reload(); });
+}
+
 /* ---------- init ---------- */
 // earliest pickable date: 18 months of field history live, or the start of the shared copy's window
 function minStart() { if (S.mode === "shared" && S.shared) return S.shared.from; const d = new Date(); d.setUTCMonth(d.getUTCMonth() - 18); return iso(d); }
 function init() {
+  S.app = !!window.FD_APP;
+  // the app starts empty and reads Razieli live; the artifact uses its copy
+  setRazieli(S.app ? {asOf: new Date().toISOString(), live: true, loading: true, notes: [], leads: {}, closed: {}, current: {}} : RAZIELI);
+  $("appFoot").hidden = !S.app;
   const ps = $("period");
   ps.innerHTML = PERIODS.map(p => `<option value="${p.id}">${p.label}</option>`).join("");
   ps.value = periodById(store.get("period", "Q4-2026")).id;
@@ -1627,7 +1918,8 @@ function init() {
       if (db) return loadShared();
       $("banner").innerHTML = `<div class="banner info">This dashboard loads live Salesforce data through your "${esc(SF_SERVER)}" connector. Open it in claude.ai, signed in with Salesforce connected, to see the numbers.</div>`; setStatus("err", "Not connected"); return;
     }
-    S.mcp = m; load(false); loadSubmissions();
+    S.mcp = m;
+    if (S.app) { loadAppSession(); loadRazieli(false).then(() => load(false)); } else { load(false); loadSubmissions(); }
   }).catch(() => { setStatus("err", "Not connected"); });
 }
 init();
