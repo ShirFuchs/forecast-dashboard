@@ -314,7 +314,7 @@ tr.cur td{font-weight:700}
 </div>
 
 <footer>
- <p id="appFoot" hidden><b>This app.</b> Salesforce is read with the dashboard owner's Salesforce login (only the dashboard's own queries), Razieli live with the dashboard's Razieli access, and Razieli's saved submission snapshots in Snowflake with your own Snowflake sign-in. Where the notes below mention claude.ai connectors or Slack, the app uses these instead, and the calendar's forecast days come from Razieli. Aviv's forecast keeps his inputs in the app's own storage, separate from the claude.ai version's, and only the people the dashboard owner lists can change them.</p>
+ <p id="appFoot" hidden><b>This app.</b> Salesforce is read with the dashboard owner's Salesforce login (only the dashboard's own queries), Razieli live with the dashboard's Razieli access, and Razieli's saved submission snapshots in Snowflake with your own Snowflake sign-in. Where the notes below mention claude.ai connectors or Slack, the app uses these instead, and the calendar's forecast days come from Razieli. Aviv's forecast is kept only here (the claude.ai version links to it), and only the people the dashboard owner lists can change it.</p>
  <p><b>Company and region tabs.</b> Company is Shaka's (Shachar Arnon, VP) forecast over all deals, using the VP forecast column. North America (Daniel Pesce), EMEA (Lidor Oz) and APAC (Guy Port) are each region lead's forecast, using the Region Lead Forecast column, over the deals whose account region is North America or LATAM, EMEA or ROW, and APAC. That region split is an approximation: Razieli groups deals by the owner's reporting line, which can put a few deals under a different region lead. Each tab keeps its own compare dates and its own Forecast weekly snapshot or Pipeline status choice.</p>
  <p><b>How this is built.</b> For the selected period the dashboard takes every <code>ARR_Breakdown__c</code> row whose ARR Period (<code>ARR_End_Date__c</code>) is the last day of that quarter, and sums its ARR $ (Potential) (<code>ARR_Dollar__c</code>) by product. Periods are year-to-date, so Q3 uses 30 Sep and Q4 uses 31 Dec. Only the conditions come from the opportunity: won means stage Closed Won or Committed; forecast means the tab's forecast column (<code>VP_Forecast__c</code> or <code>Region_Lead_Forecast__c</code>) is Best Case, Commit, Next Q Best Case or Next Q Commit on an open deal. In Pipeline status, Next Q Best Case and Next Q Commit deals belong to the quarter after their Min ARR quarter, so they count only once the selected period reaches that quarter.</p>
  <p>The start and end positions are rebuilt from Salesforce field history on the forecast column, Stage, Min ARR Date and Min ARR Period Amount ($). ARR Breakdown keeps no history, but its rows are built from Bookings, which do: when any of a deal's bookings changed after the earlier moment (ARR start or end date, ARR base amount, or which deal it belongs to), the deal's quarter-end ARR then is rebuilt from its bookings as they stood, a booking counting when its ARR period covered the quarter's last month. Otherwise a deal's value is its ARR row scaled by how its Min ARR amount has changed since. Deleted bookings leave no history and can't be rebuilt. A deal that has a row today but whose Min ARR date was after the quarter end on the earlier date counts as pulled into the period. A deal that no longer has a row (Min ARR date moved past the quarter end, or closed lost, which removes the rows) is valued from its first ARR period, or for closed lost from its opportunity products. Field history goes back 18 months.</p>
@@ -322,7 +322,7 @@ tr.cur td{font-weight:700}
  <p><b>Two views, both tied to the compare end date.</b> The waterfall and What changed follow the open tab: in Pipeline status they compare deal status at the start of the start date with the end of the end date; in Forecast weekly snapshot they compare the lead's latest submission on or before each date, with their judgment at each end when Razieli still has it. Pipeline status shows every deal's status at the end of the end date (right now when it is today). Forecast weekly snapshot shows the lead's last submission for the selected quarter on or before the end date (the saved snapshot, or where there is none the time of their latest #forecast-update post or Razieli's submit time, with each deal rebuilt from history as of that moment), plus the judgment that went with it when Razieli still has it.</p>
  <p>Judgment is the number the lead enters in Razieli on top of closed, Commit and Best Case. Every Razieli submission carries the judgment entered with it, so each forecast shows its own judgment, and the waterfall puts the starting forecast's judgment in the starting balance and shows only the change in purple. Each judgment is split into the lines of the lead's judgment note where the lines have amounts; whatever they don't account for shows as one more line. Shaka's judgments of $1 or $2 are markers and count as none. Razieli's history sometimes misses a lead's latest submission; it's added back from Razieli's current forecast. The Cloud Run app reads all of this live from Razieli; the claude.ai version uses a copy taken 15 Oct 2026. Judgment columns show only with all products selected.</p>
  <p><b>Forecast accuracy.</b> Every forecast each lead submitted in Razieli since its history starts (2 Jun 2026), using the Forecast number they enter, not best case, against Razieli's closed ARR for the quarter. Region leads are grouped the way Razieli groups them, by the owner's reporting line. A submission whose Forecast is zero, equals its judgment, or is under half or over twice the lead's usual number for the quarter is treated as a typo and left out; the tab names any it leaves out.</p>
- <p><b>Aviv's forecast.</b> Q4 2026 only, over all deals. Open deals with an <code>ARR_Breakdown__c</code> row at 31 Dec 2026 whose <code>VP_Forecast__c</code> is Commit, Best Case, Pipeline, Next Q Commit or Next Q Best Case, read live from Salesforce. Closed is every Closed Won and Committed deal's ARR at 31 Dec 2026 (the full year, as Razieli counts it). Aviv's forecast is closed, plus the deals he has in Commit or Best Case at his amount, plus what he added. Shaka's forecast is closed, plus Shaka's Commit and Best Case at Salesforce ARR, plus Shaka's current Q4 judgment from Razieli. Aviv's inputs are saved in this dashboard's own storage, so everyone sees the same numbers, and anyone with Contributor access or above can change them. People without the Salesforce connector see the deal list as it was when the dashboard owner or an editor last opened this tab.</p>
+ <p><b>Aviv's forecast.</b> Q4 2026 only, over all deals. Open deals with an <code>ARR_Breakdown__c</code> row at 31 Dec 2026 whose <code>VP_Forecast__c</code> is Commit, Best Case, Pipeline, Next Q Commit or Next Q Best Case, read live from Salesforce. Closed is every Closed Won and Committed deal's ARR at 31 Dec 2026 (the full year, as Razieli counts it). Aviv's forecast is closed, plus the deals he has in Commit or Best Case at his amount, plus what he added. Shaka's forecast is closed, plus Shaka's Commit and Best Case at Salesforce ARR, plus Shaka's current Q4 judgment from Razieli. Aviv's inputs are saved in the forecast dashboard app, so everyone sees the same numbers, and only the people the dashboard owner lists can change them; the claude.ai version links to the app for this tab.</p>
  <p>Calendar dots mark days the tab's lead updated their forecast, read from the #forecast-update Slack channel.</p>
  <p>Data loads live from Salesforce with your own access each time the page opens, and is cached for 5 minutes. Use Refresh for a fresh pull.</p>
 </footer>
@@ -331,6 +331,8 @@ tr.cur td{font-weight:700}
 const SF_SERVER = "SalesForce Read Only";
 const FC = ["Best Case","Commit","Next Q Best Case","Next Q Commit"];
 const WON = ["Closed Won","Committed"];
+// The Cloud Run app, where Aviv's forecast is kept
+const APP_URL = "https://forecast-dashboard-csqpugca5q-ew.a.run.app";
 const SF_URL = id => `https://wscsports.lightning.force.com/lightning/r/Opportunity/${id}/view`;
 const DAY = 86400000;
 const CACHE = {staleTime: 300000, gcTime: 86400000};
@@ -2078,6 +2080,14 @@ function avRenderTable() {
 }
 function avRender() {
   if (S.tab !== "aviv") return;
+  // Aviv's inputs are saved in the app only, so this version sends people there instead of keeping its own copy
+  if (!S.app) {
+    $("tabAviv").querySelectorAll("section").forEach((s, i) => { s.hidden = i > 0; });
+    $("avTools").innerHTML = ""; $("avSummary").innerHTML = "";
+    $("avNote").innerHTML = `Aviv's forecast is kept in the forecast dashboard app, where his calls and amounts are saved and everyone at WSC sees the same numbers. ` +
+      `<a class="btn primary" href="${APP_URL}/#tab=aviv" target="_blank" rel="noopener" style="display:inline-block;margin-left:8px;text-decoration:none">Open Aviv's forecast</a>`;
+    return;
+  }
   avSubscribe();
   if (!AV.deals && !AV.loading && !AV.err && (S.mcp || S.db)) { avLoad(false); return; }
   const ro = AV.canWrite === false;
@@ -2205,7 +2215,8 @@ function init() {
   const sel = store.get("products", null); S.sel = sel ? new Set(sel) : null;
   setupCalendar();
   renderViewBar();
-  setTab(store.get("tab:" + S.view, store.get("tab", "fc")));
+  const linkTab = (location.hash.match(/[#&]tab=([a-z]+)/) || [])[1];
+  setTab(linkTab || store.get("tab:" + S.view, store.get("tab", "fc")));
   document.querySelectorAll(".tabs button").forEach(b => b.addEventListener("click", () => { setTab(b.dataset.tab); S.sel_step = null; render(); }));
   ps.addEventListener("change", () => { store.set("period", ps.value); setStatus("stale", "Press Update to load this period."); });
   $("apply").addEventListener("click", () => { if (needsReload()) load(false); else render(); });
