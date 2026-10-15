@@ -46,8 +46,10 @@
       setTimeout(() => URL.revokeObjectURL(url), 10000);
     }
   };
-  let sessionP = null;
-  const session = () => sessionP || (sessionP = api("/api/session").catch(e => { sessionP = null; throw e; }));
+  let sessionP = null, sessionAt = 0;
+  const session = () => sessionP || (sessionAt = Date.now(), sessionP = api("/api/session").catch(e => { sessionP = null; throw e; }));
+  // asked again (at most once a minute) when the page comes back into view, so edit rights follow the editor list without a reload
+  document.addEventListener("visibilitychange", () => { if (!document.hidden && Date.now() - sessionAt > 60000) sessionP = null; });
   // The page's storage: the app keeps only Aviv's inputs (aviv/Q4-2026), on its server. Everything else the claude.ai version
   // stores (the shared copy for viewers without connectors) isn't needed here, so it reads as missing and can't be written.
   const DOCS = ["aviv/Q4-2026"];

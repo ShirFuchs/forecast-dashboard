@@ -533,9 +533,11 @@ async function handle(req, res) {
     return res.end(SHIM);
   }
   if (m === "GET" && p === "/api/session") {
-    const app = await snowApp().catch(() => null), s = app ? await snowRead(req, who) : null;
+    const app = await snowApp().catch(() => null), s = app ? await snowRead(req, who) : null, edit = canEditDocs(who.email);
+    // on each page load and edit-rights re-check: shows in the logs who opened the app and whether they could change Aviv's inputs
+    log("INFO", "session", {email: who.email, canEditDocs: edit});
     return send(res, 200, {email: who.email, snowflake: {configured: !!app, connected: !!s, user: s ? s.user : null, until: s ? s.rtExp : null},
-      canEditDocs: canEditDocs(who.email)});
+      canEditDocs: edit});
   }
   if (m === "GET" && p === "/api/doc") {
     const path = url.searchParams.get("path") || "";

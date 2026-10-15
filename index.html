@@ -144,7 +144,8 @@ body[data-tab="aviv"] #controls,body[data-tab="aviv"] section.bridge,body[data-t
 #avTable input.amt,.avadd input.amt{width:120px;text-align:right;font-variant-numeric:tabular-nums}
 #avTable td{vertical-align:middle}
 #avTable tr.chg td:first-child{box-shadow:inset 3px 0 0 var(--judg)}
-#avTable tr.chg select,#avTable tr.chg input.amt:not(:placeholder-shown){border-color:var(--judg);color:var(--judg);font-weight:600}
+#avTable tr.chg input.amt:not(:placeholder-shown){border-color:var(--judg);color:var(--judg);font-weight:600}
+#avTable tr.chg select{box-shadow:0 0 0 2px var(--surface),0 0 0 4px var(--judg)}
 #avTable select:disabled,#avTable input:disabled,.avadd input:disabled{opacity:.7}
 #avTable tfoot td{font-weight:700;border-bottom:0}
 .avadd{display:grid;grid-template-columns:minmax(0,2fr) 130px minmax(0,2fr) auto;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)}
@@ -152,6 +153,19 @@ body[data-tab="aviv"] #controls,body[data-tab="aviv"] section.bridge,body[data-t
 .avadd.tot b:last-child{text-align:right;font-variant-numeric:tabular-nums}
 @media(max-width:700px){.avadd{grid-template-columns:1fr 1fr}.avadd input.amt{width:100%}}
 .avcmp{max-width:620px;margin-top:18px}
+/* forecast categories in Aviv's tab: Commit filled in the strong blue, Best Case in the light blue, Pipeline (and anything else) a grey dashed outline */
+.fc{display:inline-block;font-size:12.5px;font-weight:600;line-height:1.6;padding:0 9px;border-radius:999px;border:1px solid transparent;white-space:nowrap}
+.fc.c{background:var(--commit);color:var(--surface)}
+.fc.b{background:var(--bc);color:var(--ink)}
+.fc.p{border:1px dashed var(--muted);color:var(--muted);font-weight:400}
+.sw{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:-1px;box-sizing:border-box}
+.sw.c{background:var(--commit)}.sw.b{background:var(--bc)}.sw.p{border:1px dashed var(--muted)}
+#avTable select[data-cat="Commit"]{background-color:var(--commit);border-color:var(--commit);color:var(--surface);font-weight:600}
+#avTable select[data-cat="Best Case"]{background-color:var(--bc);border-color:var(--bc);color:var(--ink);font-weight:600}
+#avTable select[data-cat="Pipeline"]{border-style:dashed;border-color:var(--muted);color:var(--muted)}
+#avTable select option{background:var(--surface);color:var(--ink);font-weight:400}
+#avTable select[data-cat]:disabled{opacity:1;cursor:default}
+.seg button[aria-pressed="true"] .sw{box-shadow:0 0 0 1.5px var(--bg)}
 .acchead{display:flex;justify-content:space-between;align-items:flex-start;gap:12px 20px;flex-wrap:wrap}
 .acccard .ax{font-size:10.5px;fill:var(--muted)}.acccard .lab{font-size:11.5px;font-weight:650}
 .accgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,460px),1fr));gap:18px}
@@ -284,7 +298,7 @@ tr.cur td{font-weight:700}
 <section>
  <div class="acchead"><h2 id="avDealsTitle">Open deals</h2>
   <div class="avfilters"><input type="search" id="avSearch" placeholder="Search deal, account, owner or region" aria-label="Search deals"><div class="seg" id="avFilt" role="group" aria-label="Show"></div></div></div>
- <p class="note">Open deals with ARR at 31 Dec 2026 that Shaka's VP forecast or the region lead's forecast has in Commit, Best Case or Pipeline (Next Q Commit and Next Q Best Case start in Commit and Best Case, as in Razieli). Aviv's call starts as Shaka's. Change it, or type an amount (such as 250k or 1.2M) to replace the Salesforce ARR; clear the amount to go back to Salesforce. Commit and Best Case count in Aviv's forecast, Pipeline doesn't. Rows Aviv changed are marked in purple.</p>
+ <p class="note">Open deals with ARR at 31 Dec 2026 that Shaka's VP forecast or the region lead's forecast has in Commit, Best Case or Pipeline (Next Q Commit and Next Q Best Case start in Commit and Best Case, as in Razieli). Aviv's call starts as Shaka's. Change it, or type an amount (such as 250k or 1.2M) to replace the Salesforce ARR; clear the amount to go back to Salesforce. Commit and Best Case (filled blue) count in Aviv's forecast, Pipeline (grey outline) doesn't. Rows Aviv changed are marked in purple.</p>
  <div class="scroll"><table id="avTable"></table></div>
 </section>
 <section>
@@ -1893,6 +1907,10 @@ const AV_FC = ["Commit", "Best Case", "Pipeline", "Next Q Commit", "Next Q Best 
 const AV_CATS = ["Commit", "Best Case", "Pipeline"];
 const AV_COUNTS = c => c === "Commit" || c === "Best Case";
 const avShaka = vp => /Commit/.test(vp || "") ? "Commit" : /Best Case/.test(vp || "") ? "Best Case" : "Pipeline";
+// a forecast value as a colored pill, colored by how it counts here (Next Q Commit as Commit; Omitted and the like as Pipeline)
+const avCls = c => c === "Commit" ? "c" : c === "Best Case" ? "b" : "p";
+const avPill = v => v ? `<span class="fc ${avCls(avShaka(v))}">${esc(v)}</span>` : '<span class="muted">—</span>';
+const avSw = c => AV_CATS.includes(c) ? `<i class="sw ${avCls(c)}" aria-hidden="true"></i>` : "";
 // Shaka's current Q4 judgment (his latest Razieli submission) with its note's lines
 const avShakaJ = () => { const s = rzSubAt("co", AV_PERIOD, Date.now()); return s && s[2] ? {val: s[2], submitted: iso(new Date(s[0])), items: noteItems(s)} : null; };
 const AV = {deals: null, closed: 0, closedN: 0, at: null, src: null, loading: false, err: null, doc: null, docReady: false, unsub: null,
@@ -1910,7 +1928,7 @@ const avState = () => { const d = AV.doc || {}; return {calls: d.calls || {}, ad
 const avRow = (d, st) => { const s = avShaka(d.vp), c = st.calls[d.id]; return {d, s, c, cat: (c && c.cat) || s, amt: c && c.amt != null ? c.amt : d.arr}; };
 
 async function avLoadLive() {
-  const sel = "SELECT Id, Opportunity__c, Product__r.Name, ARR_Dollar__c, Opportunity__r.Name, Opportunity__r.Account.Name, Opportunity__r.Type, Opportunity__r.StageName, Opportunity__r.VP_Forecast__c, Opportunity__r.Region_Lead_Forecast__c, Opportunity__r.Region__c, Opportunity__r.Owner.Name, Opportunity__r.Min_ARR_Date__c FROM ARR_Breakdown__c";
+  const sel = "SELECT Id, Opportunity__c, Product__r.Name, ARR_Dollar__c, Opportunity__r.Name, Opportunity__r.Account.Name, Opportunity__r.Type, Opportunity__r.StageName, Opportunity__r.VP_Forecast__c, Opportunity__r.Region_Lead_Forecast__c, Opportunity__r.Region__c, Opportunity__r.Owner.Name FROM ARR_Breakdown__c";
   const fc = AV_FC.map(q).join(",");
   const [rows, agg] = await Promise.all([
     soqlAll(sel, `ARR_End_Date__c = ${AV_QEND} AND (Opportunity__r.VP_Forecast__c IN (${fc}) OR Opportunity__r.Region_Lead_Forecast__c IN (${fc})) AND Opportunity__r.StageName NOT IN ('Closed Won','Committed','Closed Lost','Merged')`, 2000),
@@ -1921,7 +1939,7 @@ async function avLoadLive() {
     const x = r.Opportunity__r || {};
     let d = m.get(r.Opportunity__c);
     if (!d) m.set(r.Opportunity__c, d = {id: r.Opportunity__c, name: x.Name, account: x.Account && x.Account.Name, type: x.Type, stage: x.StageName, vp: x.VP_Forecast__c,
-      rl: x.Region_Lead_Forecast__c, region: x.Region__c, owner: x.Owner && x.Owner.Name, mad: x.Min_ARR_Date__c, arr: 0});
+      rl: x.Region_Lead_Forecast__c, region: x.Region__c, owner: x.Owner && x.Owner.Name, arr: 0});
     d.arr += Number(r.ARR_Dollar__c) || 0;
   });
   const a = agg[0] || {};
@@ -2052,7 +2070,7 @@ function avRenderSummary() {
     `<div class="legend" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">` +
     parts.map(p => `<div style="border-color:var(${p[2]})"><div class="v">${fmt(p[1])}</div><div class="l">${esc(p[0])}, ${esc(p[3])}</div></div>`).join("") + `</div>` +
     `<div class="scroll avcmp"><table><thead><tr><th></th><th class="n">Shaka</th><th class="n">Region leads</th><th class="n">Aviv</th><th class="n">Aviv vs Shaka</th></tr></thead><tbody>` +
-    rows.map(r => `<tr><td>${esc(r[0])}</td><td class="n">${fmt(r[1])}</td><td class="n">${fmt(r[3])}</td><td class="n">${fmt(r[2])}</td><td class="n ${cls(r[2] - r[1])}">${dl(r[2] - r[1])}</td></tr>`).join("") +
+    rows.map(r => `<tr><td>${avSw(r[0])}${esc(r[0])}</td><td class="n">${fmt(r[1])}</td><td class="n">${fmt(r[3])}</td><td class="n">${fmt(r[2])}</td><td class="n ${cls(r[2] - r[1])}">${dl(r[2] - r[1])}</td></tr>`).join("") +
     `<tr class="tot"><td>Forecast</td><td class="n">${fmt(t.shT)}</td><td class="n">${fmt(t.rlT)}</td><td class="n">${fmt(t.avT)}</td><td class="n ${cls(d)}">${dl(d)}</td></tr></tbody></table></div>`;
   const tot = $("avAddTot"); if (tot) tot.textContent = full(t.add);
 }
@@ -2070,8 +2088,8 @@ function avRenderAdds() {
 function avRowHtml(r) {
   const d = r.d, dis = avLocked() ? " disabled" : "";
   return `<tr data-id="${esc(d.id)}"${r.c ? ' class="chg"' : ""}><td><a href="${SF_URL(d.id)}" target="_blank" rel="noopener">${esc(d.name)}</a><br><span class="chip">${esc(d.type || "")}</span> <span class="chip">${esc(d.region || "")}</span></td>` +
-    `<td>${esc(d.account || "")}</td><td>${esc(d.owner || "")}</td><td>${esc(d.stage || "")}<br><span class="muted">Min ARR ${md(d.mad)}</span></td><td>${esc(d.vp || "")}</td><td>${esc(d.rl || "")}</td>` +
-    `<td><select id="avc-${esc(d.id)}" aria-label="Aviv's call on ${esc(d.name)}"${dis}>${AV_CATS.map(c => `<option${c === r.cat ? " selected" : ""}>${c}</option>`).join("")}</select></td>` +
+    `<td>${esc(d.account || "")}</td><td>${esc(d.owner || "")}</td><td>${esc(d.stage || "")}</td><td>${avPill(d.vp)}</td><td>${avPill(d.rl)}</td>` +
+    `<td><select id="avc-${esc(d.id)}" data-cat="${esc(r.cat)}" aria-label="Aviv's call on ${esc(d.name)}"${dis}>${AV_CATS.map(c => `<option${c === r.cat ? " selected" : ""}>${c}</option>`).join("")}</select></td>` +
     `<td class="n">${full(d.arr)}</td>` +
     `<td class="n"><input class="amt" id="ava-${esc(d.id)}" inputmode="decimal" placeholder="${esc(avNum(d.arr))}" value="${r.c && r.c.amt != null ? esc(avNum(r.c.amt)) : ""}" aria-label="Aviv's amount for ${esc(d.name)}"${dis}></td>` +
     `<td class="n avv">${AV_COUNTS(r.cat) ? full(r.amt) : '<span class="muted">not counted</span>'}</td></tr>`;
@@ -2086,7 +2104,7 @@ function avRenderTable() {
   const n = {all: all.length, chg: all.filter(r => r.c).length};
   AV_CATS.forEach(c => n[c] = all.filter(r => r.cat === c).length);
   const opts = [["all", "All"], ["Commit", "Commit"], ["Best Case", "Best Case"], ["Pipeline", "Pipeline"], ["chg", "Changed by Aviv"]];
-  $("avFilt").innerHTML = opts.map(([k, l]) => `<button type="button" data-f="${k}" aria-pressed="${AV.filter === k}">${l} <span class="muted">${n[k]}</span></button>`).join("");
+  $("avFilt").innerHTML = opts.map(([k, l]) => `<button type="button" data-f="${k}" aria-pressed="${AV.filter === k}">${avSw(k)}${l} <span class="muted">${n[k]}</span></button>`).join("");
   const rows = all.filter(r => (AV.filter === "all" || (AV.filter === "chg" ? !!r.c : r.cat === AV.filter)) && (!q || `${r.d.name} ${r.d.account || ""} ${r.d.owner} ${r.d.region}`.toLowerCase().includes(q)))
     .sort((a, b) => b.d.arr - a.d.arr);
   $("avDealsTitle").textContent = `Open deals (${all.length})`;
@@ -2108,7 +2126,8 @@ function avRender() {
   if (!AV.deals && !AV.loading && !AV.err && (S.mcp || S.db)) { avLoad(false); return; }
   const ro = AV.canWrite === false, locked = avLocked();
   $("avTools").innerHTML = `<span id="avSave"></span>` +
-    (AV.deals && !locked ? `<button type="button" class="btn" id="avReset">${AV.resetArm ? "Click again to reset everything to Shaka's" : "Reset to Shaka's"}</button>` : "") +
+    // Reset puts back Shaka's judgment lines, so it waits for Razieli (without it there would be none to put back)
+    (AV.deals && !locked && !RAZIELI.loading && Object.keys(RAZIELI.leads || {}).length > 0 ? `<button type="button" class="btn" id="avReset">${AV.resetArm ? "Click again to reset everything to Shaka's" : "Reset to Shaka's"}</button>` : "") +
     (S.mcp && S.mode !== "shared" ? `<button type="button" class="btn" id="avRefresh"${AV.loading ? " disabled" : ""}>${AV.loading ? "Loading…" : "Refresh deals"}</button>` : "");
   avSaveNote();
   const rf = $("avRefresh"); if (rf) rf.addEventListener("click", () => avLoad(true));
@@ -2141,6 +2160,7 @@ function avInit() {
     avEdit(x => { if (cat === avShaka(d.vp) && (amt == null || amt === Math.round(d.arr))) delete x.calls[id]; else x.calls[id] = {cat, amt: amt === Math.round(d.arr) ? null : amt}; });
     const r = avRow(d, avState());
     tr.classList.toggle("chg", !!r.c);
+    sel.dataset.cat = r.cat;
     inp.value = r.c && r.c.amt != null ? avNum(r.c.amt) : "";
     tr.querySelector(".avv").innerHTML = AV_COUNTS(r.cat) ? full(r.amt) : '<span class="muted">not counted</span>';
     $("avTable").querySelector("tfoot").innerHTML = avFootHtml();
@@ -2251,6 +2271,13 @@ function init() {
     S.db = db; S.mcp = m;
     try { S.canWrite = !!(user && (user.isOwner() || user.canEdit())); } catch (e) { S.canWrite = false; }
     if (user) { try { AV.canWrite = await user.can("data.write"); } catch (e) {} try { AV.uid = await user.id(); } catch (e) {} }
+    // in the app, edit rights are checked again when the page comes back into view, so a change to the editor list needs no reload
+    if (user && S.app) document.addEventListener("visibilitychange", async () => {
+      if (document.hidden) return;
+      let w = AV.canWrite;
+      try { w = await user.can("data.write"); } catch (e) {}
+      if (w !== AV.canWrite) { AV.canWrite = w; if (S.tab === "aviv") avRender(); }
+    });
     if (S.tab === "aviv") avRender();
     use("downloads").then(d => { if (d) { S.dl = d; render(); } });
     if (!m) {
