@@ -52,27 +52,95 @@
   // stores (the shared copy for viewers without connectors) isn't needed here, so it reads as missing and can't be written.
   const DOCS = ["aviv/Q4-2026"];
   const snap = j => ({exists: !!j.exists, data: () => j.data});
+  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  // Applies what the page changed (from `base`, the version it last took, to `mine`) onto `latest`, the newest saved version:
+  // deal calls by deal, added amounts by line id. Everyone else's changes in between stay.
+  function rebase(base, mine, latest) {
+    base = base || {}; latest = latest || {};
+    const calls = {...(latest.calls || {})}, bc = base.calls || {}, mc = mine.calls || {};
+    for (const id of new Set([...Object.keys(bc), ...Object.keys(mc)])) {
+      if (same(bc[id], mc[id])) continue;
+      if (mc[id] === undefined) delete calls[id]; else calls[id] = mc[id];
+    }
+    const out = {calls};
+    if (Array.isArray(mine.adds) || Array.isArray(base.adds)) {
+      const ba = new Map((base.adds || []).map(a => [a.id, a])), ma = new Map((mine.adds || []).map(a => [a.id, a]));
+      let adds = Array.isArray(latest.adds) ? latest.adds.slice() : [];
+      for (const id of ba.keys()) if (!ma.has(id)) adds = adds.filter(a => a.id !== id);
+      for (const [id, a] of ma) {
+        if (same(ba.get(id), a)) continue;
+        const i = adds.findIndex(x => x.id === id);
+        if (i >= 0) adds[i] = a; else adds.push(a);
+      }
+      out.adds = adds;
+    } else if (latest.adds !== undefined) out.adds = latest.adds;
+    return out;
+  }
+  const docs = {}; // path -> {gen, latest: newest saved version known, base: the version the page last took, ticks}
   const db = {
     doc(path) {
       const ours = DOCS.includes(path);
-      const get = async () => ours ? snap(await api("/api/doc?path=" + encodeURIComponent(path))) : snap({exists: false});
+      const st = docs[path] = docs[path] || {gen: "0", latest: null, base: null, ticks: new Set()};
+      // the saved version; an answer older than one already seen (a read that crossed a save) is dropped
+      const read = async () => {
+        const j = await api("/api/doc?path=" + encodeURIComponent(path));
+        if (Number(j.gen) < Number(st.gen)) return null;
+        st.gen = j.gen; st.latest = j.exists ? j.data : null;
+        return j;
+      };
       return {
-        get,
+        async get() {
+          if (!ours) return snap({exists: false});
+          const j = (await read()) || {exists: st.latest != null, data: st.latest};
+          st.base = j.data || null;
+          return snap(j);
+        },
+        // saves the page's changes on top of the newest version; when someone saved in between, reads theirs and merges
         async set(data) {
           if (!ours) throw {code: "invalid_argument", message: "Not stored in the app."};
-          await api("/api/doc", {path, data});
+          for (let attempt = 0; ; attempt++) {
+            const target = rebase(st.base, data, st.latest);
+            try {
+              const r = await api("/api/doc", {path, data: target, gen: st.gen});
+              // the page now holds `data`; its next changes are measured from there
+              st.gen = r.gen; st.latest = r.data; st.base = data;
+              // show the page what others added, once its own save is done
+              if (!same(target.calls, data.calls) || !same(target.adds, data.adds)) setTimeout(() => st.ticks.forEach(t => t()), 300);
+              return;
+            } catch (e) {
+              if (!e || e.code !== "conflict" || attempt >= 3) throw e;
+              await read();
+            }
+          }
         },
         async delete() { throw {code: "invalid_argument", message: "Not stored in the app."}; },
-        // other viewers' changes show up within half a minute
+        // the first read happens right away (retried every few seconds until it works); after that, other people's changes
+        // show up within half a minute while the tab is visible, and at once when it becomes visible again
         onSnapshot(next, error) {
-          let stop = false, timer = null;
+          if (!ours) { setTimeout(() => next(snap({exists: false})), 0); return () => {}; }
+          let stop = false, timer = null, loaded = false, busy = false;
           const tick = async () => {
-            if (stop) return;
-            try { if (!document.hidden) next(await get()); } catch (e) { if (error) error(e); }
-            if (!stop) timer = setTimeout(tick, 30000);
+            if (stop || busy) return;
+            clearTimeout(timer); busy = true;
+            try {
+              if (!loaded || !document.hidden) {
+                const j = await read();
+                if (j || !loaded) {
+                  const s = j || {exists: st.latest != null, data: st.latest};
+                  // the page says whether it took this version (it skips one while its own edit is being saved)
+                  if (next(snap(s)) !== false) st.base = s.data || null;
+                  loaded = true;
+                }
+              }
+            } catch (e) { if (error) error(e); }
+            busy = false;
+            if (!stop) timer = setTimeout(tick, loaded ? 30000 : 5000);
           };
+          const onShow = () => { if (!document.hidden) tick(); };
+          document.addEventListener("visibilitychange", onShow);
+          st.ticks.add(tick);
           timer = setTimeout(tick, 0);
-          return () => { stop = true; clearTimeout(timer); };
+          return () => { stop = true; clearTimeout(timer); document.removeEventListener("visibilitychange", onShow); st.ticks.delete(tick); };
         }
       };
     }

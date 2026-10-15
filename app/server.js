@@ -478,7 +478,8 @@ const DOCS = {
     for (const a of (Array.isArray(d && d.adds) ? d.adds : []).slice(0, 300)) {
       if (a && typeof a === "object") adds.push({id: String(a.id || "").slice(0, 40), name: String(a.name || "").slice(0, 300), amt: num(a.amt) || 0, note: String(a.note || "").slice(0, 300)});
     }
-    return {calls, adds};
+    // no list of added amounts at all means it still follows Shaka's judgment lines, so it stays absent
+    return Array.isArray(d && d.adds) ? {calls, adds} : {calls};
   }
 };
 const docObject = p => `docs/${p}.json`;
@@ -487,16 +488,25 @@ async function storeFetch(url, init = {}) {
   if (r.status >= 500 || r.status === 429) throw unavailable("The app's storage");
   return r;
 }
+// Each saved version has a generation number; a save names the generation it builds on and is refused (409 "conflict")
+// when someone saved in between, so the page's storage can merge and try again. Generation "0" means "doesn't exist yet".
 async function docGet(p) {
-  const r = await storeFetch(`https://storage.googleapis.com/storage/v1/b/${STORE.bucket}/o/${encodeURIComponent(docObject(p))}?alt=media`);
-  if (r.status === 404) return {exists: false};
+  const o = `https://storage.googleapis.com/storage/v1/b/${STORE.bucket}/o/${encodeURIComponent(docObject(p))}`;
+  const m = await storeFetch(o);
+  if (m.status === 404) return {exists: false, gen: "0"};
+  if (!m.ok) throw httpError(500, "not_configured", `The app can't read its storage (HTTP ${m.status}).`);
+  const gen = String((await m.json()).generation);
+  const r = await storeFetch(`${o}?alt=media&generation=${encodeURIComponent(gen)}`);
+  if (r.status === 404) return docGet(p); // replaced between the two reads
   if (!r.ok) throw httpError(500, "not_configured", `The app can't read its storage (HTTP ${r.status}).`);
-  return {exists: true, data: await r.json()};
+  return {exists: true, data: await r.json(), gen};
 }
-async function docSet(p, data) {
-  const r = await storeFetch(`https://storage.googleapis.com/upload/storage/v1/b/${STORE.bucket}/o?uploadType=media&name=${encodeURIComponent(docObject(p))}`,
+async function docSet(p, data, gen) {
+  const r = await storeFetch(`https://storage.googleapis.com/upload/storage/v1/b/${STORE.bucket}/o?uploadType=media&name=${encodeURIComponent(docObject(p))}&ifGenerationMatch=${gen}`,
     {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(data)});
+  if (r.status === 412) throw httpError(409, "conflict", "Someone saved a newer version in the meantime.");
   if (!r.ok) throw httpError(500, "not_configured", `The app can't save to its storage (HTTP ${r.status}).`);
+  return String((await r.json()).generation);
 }
 
 /* ---------- routes ---------- */
@@ -562,9 +572,10 @@ async function handle(req, res) {
       if (!clean) return fail(res, 404, "not_found", "No such document.");
       if (!STORE.editors.has(who.email)) return fail(res, 403, "invalid_argument", "You can view this but not change it.");
       const data = {...clean(body.data), updatedAt: Date.now(), updatedBy: who.email};
-      await docSet(body.path, data);
-      log("NOTICE", "document saved", {path: body.path, email: who.email});
-      return send(res, 200, {ok: true, data});
+      // without the generation it builds on, a save can only create the document, never replace one
+      const gen = await docSet(body.path, data, /^\d+$/.test(String(body.gen)) ? String(body.gen) : "0");
+      log("NOTICE", "document saved", {path: body.path, email: who.email, gen});
+      return send(res, 200, {ok: true, data, gen});
     }
     if (p === "/api/snowflake/disconnect") return send(res, 200, {ok: true}, {"Set-Cookie": SNOW_LOGOUT});
     return fail(res, 404, "not_found", "No such API.");

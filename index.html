@@ -1945,7 +1945,7 @@ async function avFetch(refresh) {
     } catch (e) { if (!(S.db && NO_SF.includes(e && e.code))) throw e; }
     finally { if (refresh) refreshing = false; }
   }
-  if (!S.db) return null;
+  if (!S.db || S.app) return null;
   const m = await S.db.doc(AV_SHARED).get();
   if (!m.exists) return null;
   const b = JSON.parse(await gunzipB64(m.data().z)); b.src = "shared"; return b;
@@ -1965,17 +1965,25 @@ async function avLoad(refresh) {
 function avSubscribe() {
   if (AV.unsub || !S.db) return;
   AV.unsub = S.db.doc(AV_DOC).onSnapshot(snap => {
-    AV.docReady = true;
-    if (AV.timer || AV.saving) return; // this view's own edit is on its way and will win
+    const first = !AV.docReady;
+    AV.docReady = true; AV.readErr = null;
+    if (!first && (AV.timer || AV.saving)) return false; // this view's own edit is on its way and will win
     AV.doc = snap.exists ? snap.data() : null;
-    if (S.tab !== "aviv") return;
-    if (avEditing()) { AV.dirtyRemote = true; avRenderSummary(); } else avRender();
-  }, () => { AV.docReady = true; AV.saveErr = "Couldn't read Aviv's saved inputs. Reload the page to try again."; if (S.tab === "aviv") avRender(); });
+    if (S.tab !== "aviv") return true;
+    if (!first && avEditing()) { AV.dirtyRemote = true; avRenderSummary(); } else avRender();
+    return true;
+  }, () => { if (!AV.docReady) { AV.readErr = "Couldn't read Aviv's saved inputs yet; trying again…"; if (S.tab === "aviv") avRender(); } });
 }
 const avEditing = () => { const a = document.activeElement; return !!(a && a.closest && a.closest("#tabAviv") && a.matches("input,select")); };
 
+// Inputs stay locked for viewers who can't edit, until Aviv's saved inputs have loaded, and (in the app, while the list of
+// added amounts still follows Shaka) until Shaka's judgment lines have come from Razieli
+const avJReady = () => !S.app || Array.isArray((AV.doc || {}).adds) || (!RAZIELI.loading && Object.keys(RAZIELI.leads || {}).length > 0);
+const avLocked = () => AV.canWrite === false || !AV.docReady || !!AV.readErr || !avJReady();
+
 /* edits: change the local copy at once, save after a short pause (one write at a time) */
 function avEdit(mut) {
+  if (avLocked()) { avRender(); return; }
   const st = avState(), x = {calls: {...st.calls}, adds: st.adds.map(a => ({...a}))};
   mut(x);
   AV.doc = {...(AV.doc || {}), calls: x.calls, adds: x.adds};
@@ -1984,6 +1992,7 @@ function avEdit(mut) {
 }
 async function avFlush() {
   AV.timer = null;
+  if (!AV.docReady) return;
   if (!S.db) { AV.saveErr = "Changes can't be saved in this view."; avSaveNote(); return; }
   if (AV.saving) { AV.timer = setTimeout(avFlush, 400); return; }
   AV.saving = true; avSaveNote();
@@ -2000,8 +2009,9 @@ async function avFlush() {
 function avSaveNote() {
   const el = $("avSave"); if (!el) return;
   const t = AV.doc && AV.doc.updatedAt;
-  el.className = AV.saveErr ? "neg" : "muted";
-  el.textContent = AV.saveErr || (AV.timer || AV.saving ? "Saving…" : t ? `Saved ${fmtStamp(t)}` : AV.canWrite === false ? "View only" : "Following Shaka until Aviv changes something");
+  const wait = AV.readErr || (!AV.docReady ? "Loading Aviv's saved inputs…" : !avJReady() ? (S.rzErr ? "Can't edit until Shaka's judgment loads from Razieli. Reload to try again." : "Loading Shaka's judgment from Razieli…") : "");
+  el.className = AV.saveErr || AV.readErr ? "neg" : "muted";
+  el.textContent = AV.saveErr || wait || (AV.timer || AV.saving ? "Saving…" : t ? `Saved ${fmtStamp(t)}` : AV.canWrite === false ? "View only" : "Following Shaka until Aviv changes something");
 }
 
 function avTotals() {
@@ -2041,8 +2051,8 @@ function avRenderSummary() {
   const tot = $("avAddTot"); if (tot) tot.textContent = full(t.add);
 }
 function avRenderAdds() {
-  const st = avState(), dis = AV.canWrite === false ? " disabled" : "";
-  $("avAddBtn").disabled = AV.canWrite === false;
+  const st = avState(), dis = avLocked() ? " disabled" : "";
+  $("avAddBtn").disabled = avLocked();
   $("avAdds").innerHTML = (st.adds.length ? st.adds.map(a => `<div class="avadd" data-id="${esc(a.id)}">` +
       `<input id="avn-${esc(a.id)}" class="nm" placeholder="Deal or reason" value="${esc(a.name || "")}" aria-label="Deal or reason"${dis}>` +
       `<input id="avm-${esc(a.id)}" class="amt" inputmode="decimal" placeholder="Amount" value="${esc(avNum(a.amt))}" aria-label="Amount (USD)"${dis}>` +
@@ -2052,7 +2062,7 @@ function avRenderAdds() {
     `<div class="avadd tot"><b>Total added</b><b id="avAddTot">${full(sum(st.adds, a => Number(a.amt) || 0))}</b></div>`;
 }
 function avRowHtml(r) {
-  const d = r.d, dis = AV.canWrite === false ? " disabled" : "";
+  const d = r.d, dis = avLocked() ? " disabled" : "";
   return `<tr data-id="${esc(d.id)}"${r.c ? ' class="chg"' : ""}><td><a href="${SF_URL(d.id)}" target="_blank" rel="noopener">${esc(d.name)}</a><br><span class="chip">${esc(d.type || "")}</span> <span class="chip">${esc(d.region || "")}</span></td>` +
     `<td>${esc(d.owner || "")}</td><td>${esc(d.stage || "")}<br><span class="muted">Min ARR ${md(d.mad)}</span></td><td>${esc(d.vp || "")}</td>` +
     `<td><select id="avc-${esc(d.id)}" aria-label="Aviv's call on ${esc(d.name)}"${dis}>${AV_CATS.map(c => `<option${c === r.cat ? " selected" : ""}>${c}</option>`).join("")}</select></td>` +
@@ -2090,9 +2100,9 @@ function avRender() {
   }
   avSubscribe();
   if (!AV.deals && !AV.loading && !AV.err && (S.mcp || S.db)) { avLoad(false); return; }
-  const ro = AV.canWrite === false;
+  const ro = AV.canWrite === false, locked = avLocked();
   $("avTools").innerHTML = `<span id="avSave"></span>` +
-    (AV.deals && !ro ? `<button type="button" class="btn" id="avReset">${AV.resetArm ? "Click again to reset everything to Shaka's" : "Reset to Shaka's"}</button>` : "") +
+    (AV.deals && !locked ? `<button type="button" class="btn" id="avReset">${AV.resetArm ? "Click again to reset everything to Shaka's" : "Reset to Shaka's"}</button>` : "") +
     (S.mcp && S.mode !== "shared" ? `<button type="button" class="btn" id="avRefresh"${AV.loading ? " disabled" : ""}>${AV.loading ? "Loading…" : "Refresh deals"}</button>` : "");
   avSaveNote();
   const rf = $("avRefresh"); if (rf) rf.addEventListener("click", () => avLoad(true));
@@ -2164,6 +2174,7 @@ async function loadRazieli(refresh) {
   renderAppBar();
   if (S.cal) renderCal();
   if (S.tab === "acc") renderAccuracy();
+  if (S.tab === "aviv") avRender();
   if (S.loaded && !S.loading) { if (needsReload()) load(false); else render(); }
 }
 // Razieli submissions in the shape of #forecast-update posts (Israel date and time), for the calendar
@@ -2231,7 +2242,7 @@ function init() {
   setStatus("stale", "Connecting to Salesforce…");
   const use = name => window.claude && window.claude.use ? window.claude.use(name).catch(() => null) : Promise.resolve(null);
   Promise.all([use("mcp"), use("db"), use("user")]).then(async ([m, db, user]) => {
-    S.db = db;
+    S.db = db; S.mcp = m;
     try { S.canWrite = !!(user && (user.isOwner() || user.canEdit())); } catch (e) { S.canWrite = false; }
     if (user) { try { AV.canWrite = await user.can("data.write"); } catch (e) {} try { AV.uid = await user.id(); } catch (e) {} }
     if (S.tab === "aviv") avRender();
