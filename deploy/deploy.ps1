@@ -15,6 +15,15 @@ function Run { & $g @args; if ($LASTEXITCODE) { throw "failed: gcloud $($args -j
 
 Set-Location (Split-Path $PSScriptRoot -Parent)
 
+# Google expires this computer's Google Cloud sign-in every so often; when it has, sign in again here (a browser window opens)
+& $g auth print-access-token --quiet *> $null
+if ($LASTEXITCODE) {
+  Write-Host "`nYour Google Cloud sign-in on this computer has expired. A browser window opens now: sign in as your @wsc-sports.com account.`n"
+  & $g auth login
+  & $g auth print-access-token --quiet *> $null
+  if ($LASTEXITCODE) { throw "Google Cloud sign-in didn't complete, so nothing was deployed. Run this script again to retry." }
+}
+
 # The Salesforce login is the one vertical-planning uses: same connected app and user, read from that service's settings
 $vp = (& $g run services describe vertical-planning --project $p --region europe-west1 --format json) -join "`n" | ConvertFrom-Json
 $sfEnv = @{}; foreach ($e in $vp.spec.template.spec.containers[0].env) { if ($e.name -like "SF_*" -and $e.value) { $sfEnv[$e.name] = $e.value } }
