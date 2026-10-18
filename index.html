@@ -296,9 +296,9 @@ tr.cur td{font-weight:700}
  <div id="avSummary"></div>
 </section>
 <section>
- <div class="acchead"><h2 id="avDealsTitle">Open deals</h2>
+ <div class="acchead"><h2 id="avDealsTitle">Deals</h2>
   <div class="avfilters"><input type="search" id="avSearch" placeholder="Search deal, account, owner or region" aria-label="Search deals"><div class="seg" id="avFilt" role="group" aria-label="Show"></div></div></div>
- <p class="note">Open deals with ARR at 31 Dec 2026 that Shaka's VP forecast or the region lead's forecast has in Commit, Best Case or Pipeline (Next Q Commit and Next Q Best Case start in Commit and Best Case, as in Razieli). Aviv's call starts as Shaka's. Change it, or type an amount (such as 250k or 1.2M) to replace the Salesforce ARR; clear the amount to go back to Salesforce. Commit and Best Case (filled blue) count in Aviv's forecast, Pipeline (grey outline) doesn't. Rows Aviv changed are marked in purple.</p>
+ <p class="note">The deals in Shaka's last Q4 2026 submission, plus today's open deals with ARR at 31 Dec 2026 that Shaka's or the region lead's forecast has in Commit, Best Case or Pipeline. The Shaka and region lead columns are each lead's call as last submitted: filled blue counted in that forecast (darker for Commit), a grey outline didn't (hover for why). Stage and ARR in Salesforce are today's. Aviv's call starts as Shaka's, at the deal's ARR in Shaka's forecast (today's Salesforce ARR for a deal outside it). Change it, or type an amount (such as 250k or 1.2M); clear the amount to go back to Shaka's. Commit and Best Case count in Aviv's forecast, Pipeline doesn't. Rows Aviv changed are marked in purple.</p>
  <div class="scroll"><table id="avTable"></table></div>
 </section>
 <section>
@@ -336,7 +336,7 @@ tr.cur td{font-weight:700}
  <p><b>Two views, both tied to the compare end date.</b> The waterfall and What changed follow the open tab: in Pipeline status they compare deal status at the start of the start date with the end of the end date; in Forecast weekly snapshot they compare the lead's latest submission on or before each date, with their judgment at each end when Razieli still has it. Pipeline status shows every deal's status at the end of the end date (right now when it is today). Forecast weekly snapshot shows the lead's last submission for the selected quarter on or before the end date (the saved snapshot, or where there is none the time of their latest #forecast-update post or Razieli's submit time, with each deal rebuilt from history as of that moment), plus the judgment that went with it when Razieli still has it.</p>
  <p>Judgment is the number the lead enters in Razieli on top of closed, Commit and Best Case. Every Razieli submission carries the judgment entered with it, so each forecast shows its own judgment, and the waterfall puts the starting forecast's judgment in the starting balance and shows only the change in purple. Each judgment is split into the lines of the lead's judgment note where the lines have amounts; whatever they don't account for shows as one more line. Shaka's judgments of $1 or $2 are markers and count as none. Razieli's history sometimes misses a lead's latest submission; it's added back from Razieli's current forecast. The Cloud Run app reads all of this live from Razieli; the claude.ai version uses a copy taken 15 Oct 2026. Judgment columns show only with all products selected.</p>
  <p><b>Forecast accuracy.</b> Every forecast each lead submitted in Razieli since its history starts (2 Jun 2026), using the Forecast number they enter, not best case, against Razieli's closed ARR for the quarter. Region leads are grouped the way Razieli groups them, by the owner's reporting line. A submission whose Forecast is zero, equals its judgment, or is under half or over twice the lead's usual number for the quarter is treated as a typo and left out; the tab names any it leaves out.</p>
- <p><b>Aviv's forecast.</b> Q4 2026 only, over all deals. Open deals with an <code>ARR_Breakdown__c</code> row at 31 Dec 2026 whose <code>VP_Forecast__c</code> or <code>Region_Lead_Forecast__c</code> is Commit, Best Case, Pipeline, Next Q Commit or Next Q Best Case, read live from Salesforce. Closed is every Closed Won and Committed deal's ARR at 31 Dec 2026 (the full year, as Razieli counts it). Aviv's forecast is closed, plus the deals he has in Commit or Best Case at his amount, plus what he added. Shaka's forecast is closed, plus Shaka's Commit and Best Case at Salesforce ARR, plus Shaka's current Q4 judgment from Razieli. The region leads' forecast is closed, plus the deals each deal's region lead forecast has in Commit or Best Case at Salesforce ARR, plus Daniel's, Lidor's and Guy's current Q4 judgments from Razieli. Aviv's inputs are saved in the forecast dashboard app, so everyone sees the same numbers, and only the people the dashboard owner lists can change them; the claude.ai version links to the app for this tab.</p>
+ <p><b>Aviv's forecast.</b> Q4 2026 only, over all deals and products. Shaka's forecast is his last Q4 submission exactly as the Forecast weekly snapshot tab shows it for the Company: closed won and committed then, plus the deals he had in Commit and Best Case at their ARR then (Razieli's saved snapshot when Snowflake has it, else rebuilt from Salesforce history at the submission), plus that submission's judgment. The region leads' forecast is the sum of Daniel's, Lidor's and Guy's last submissions, each worked out the same way for their region. Aviv's forecast is Shaka's submission with Aviv's changes: closed as Shaka submitted it, each deal at Aviv's call and amount (Shaka's call and submitted ARR until Aviv changes them), plus Aviv's added amounts (Shaka's judgment lines until Aviv changes them). The deal list is Shaka's submitted deals plus today's open deals with an <code>ARR_Breakdown__c</code> row at 31 Dec 2026 whose <code>VP_Forecast__c</code> or <code>Region_Lead_Forecast__c</code> is Commit, Best Case, Pipeline, Next Q Commit or Next Q Best Case, read live from Salesforce. Aviv's inputs are saved in the forecast dashboard app, so everyone sees the same numbers, and only the people the dashboard owner lists can change them; the claude.ai version links to the app for this tab.</p>
  <p>Calendar dots mark days the tab's lead updated their forecast, read from the #forecast-update Slack channel.</p>
  <p>Data loads live from Salesforce with your own access each time the page opens, and is cached for 5 minutes. Use Refresh for a fresh pull.</p>
 </footer>
@@ -724,9 +724,10 @@ async function loadData(period, d0) {
     soqlAll("SELECT Id, Opportunity__c, Product__r.Name, ARR_Dollar__c, Opportunity__r.Name, Opportunity__r.Type, Opportunity__r.StageName, Opportunity__r.VP_Forecast__c, Opportunity__r.Region_Lead_Forecast__c, Opportunity__r.Region__c, Opportunity__r.Owner.Name, Opportunity__r.CreatedDate, Opportunity__r.Min_ARR_Date__c, Opportunity__r.Min_ARR_Period_Amount_Dollar__c FROM ARR_Breakdown__c",
       `ARR_End_Date__c = ${qEnd} AND (Opportunity__r.VP_Forecast__c IN (${FC.map(q).join(",")}) OR Opportunity__r.Region_Lead_Forecast__c IN (${FC.map(q).join(",")}) OR Opportunity__r.StageName IN (${WON.map(q).join(",")}) OR Opportunity__r.LastModifiedDate >= ${T0})`, 2000),
     // 2. deals whose Min ARR date moved out past the quarter end since d0 (they had an ARR row for this period then)
-    soqlAll("SELECT Id, OpportunityId, OldValue, NewValue FROM OpportunityFieldHistory", `Field = 'Min_ARR_Date__c' AND CreatedDate >= ${T0}`, 2000),
+    // (they read Field: the app's server blanks OldValue and NewValue on history rows whose Field it can't see)
+    soqlAll("SELECT Id, OpportunityId, Field, OldValue, NewValue FROM OpportunityFieldHistory", `Field = 'Min_ARR_Date__c' AND CreatedDate >= ${T0}`, 2000),
     // 3. deals closed lost since d0 (closed lost deals have no ARR rows)
-    soqlAll("SELECT Id, OpportunityId, OldValue, NewValue FROM OpportunityFieldHistory", `Field = 'StageName' AND CreatedDate >= ${T0}`, 2000),
+    soqlAll("SELECT Id, OpportunityId, Field, OldValue, NewValue FROM OpportunityFieldHistory", `Field = 'StageName' AND CreatedDate >= ${T0}`, 2000),
     // 3b. booking changes since d0: ARR Breakdown rows are built from bookings, and booking history keeps what the rows don't
     soqlAll("SELECT Id, ParentId, Field, OldValue, NewValue, CreatedDate FROM Booking__History", `CreatedDate >= ${T0} AND Field IN (${BK_FIELDS.map(q).join(",")})`, 2000)
   ]);
@@ -1058,7 +1059,7 @@ const fmtWhen = t => new Date(t).toLocaleString("en-GB", {day: "numeric", month:
 // leads' in separate tables). The view's lead's submissions are read from there; a submission the table doesn't have falls
 // back to the rebuild from Salesforce history.
 const SNOW_SERVER = "Snowflake";
-const SNAP = {lists: {}, data: {}, busy: new Set(), err: null, stubs: new Map()};
+const SNAP = {lists: {}, data: {}, busy: new Set(), err: null, stubs: new Map(), ver: 0};
 async function snow(sql) {
   let res;
   try { res = await S.mcp.callTool(SNOW_SERVER, "sql_exec", {sql}, {cache: CACHE}); }
@@ -1079,7 +1080,7 @@ function snapFetch(key, sql, store, shape) {
   if (store[key] || SNAP.busy.has(key) || !S.mcp || S.mode === "shared") return;
   SNAP.busy.add(key);
   // a viewer without Snowflake falls back to the snapshots in the shared copy, when there is one
-  snow(sql).then(rows => { store[key] = shape(rows); }).catch(e => { SNAP.err = e; store[key] = shape([]); useSharedSnaps(); })
+  snow(sql).then(rows => { store[key] = shape(rows); SNAP.ver++; }).catch(e => { SNAP.err = e; store[key] = shape([]); SNAP.ver++; useSharedSnaps(); })
     .finally(() => { SNAP.busy.delete(key); if (S.loaded && !S.loading) { if (needsReload()) load(false); else render(); } });
 }
 // The lead's submissions for the period's quarter: [{id, t, bad}]. A few saved snapshots repeat every row many times over
@@ -1111,8 +1112,7 @@ function forecastAt(period, upTo) {
   for (const s of SNAP.lists[listKey(period)] || []) if (s.t <= lim && (!sn || s.t > sn.t)) sn = s;
   const t = lastForecast(period, upTo);
   // a #forecast-update post lands seconds after its submission; a snapshot saved shortly before it is that same submission
-  if (sn && sn.bad) return {t: sn.t, snap: null, bad: true};
-  if (sn && (t == null || t - sn.t < 15 * 60000)) return {t: sn.t, snap: sn};
+  if (sn && (t == null || t - sn.t < 15 * 60000)) return sn.bad ? {t: sn.t, snap: null, bad: true} : {t: sn.t, snap: sn};
   return t != null ? {t, snap: null} : null;
 }
 const snapState = d => {
@@ -1152,7 +1152,7 @@ function renderForecastTab(period, d1) {
   renderSnapBlock("snapFc", "fc", {
     title: `${V().lead}'s forecast, ${fmtWhen(T)}`, fileTag: `forecast-${V().key}-${period.id}-${iso(new Date(T))}`,
     note: `${V().leadFull}'s last ${q} submission on or before ${dmy(d1)} (the compare end date). Won and committed deals plus open Commit and Best Case (Next Q included), ` +
-      (data ? "exactly as Razieli saved them at submission (Snowflake submission snapshot)." : `with each deal's status and ARR rebuilt from Salesforce history, because ${F.bad ? "Razieli's saved snapshot for this submission in Snowflake is corrupted (its ARR is many times too high)" : SNAP.err ? "Snowflake couldn't be read" : "Snowflake has no saved snapshot for this submission"}.`) +
+      (data ? "exactly as Razieli saved them at submission (Snowflake submission snapshot)." : `with each deal's status and ARR rebuilt from Salesforce history, because ${F.bad ? "Razieli's saved snapshot for this submission in Snowflake is corrupted (its ARR is many times too high)" : S.app && !(S.session && S.session.snowflake && S.session.snowflake.connected) ? "Snowflake isn't connected in this app yet" : SNAP.err ? "Snowflake couldn't be read" : "Snowflake has no saved snapshot for this submission"}.`) +
       (S.sel && judgmentFor(period.id, T) ? ` ${V().lead}'s judgment is hidden while a product filter is on, since it has no product split.` : ""),
     items, jn, onLabel: "in this forecast"
   });
@@ -1527,7 +1527,7 @@ function renderAll(d1) {
 }
 function render() {
   if (S.tab === "acc") { renderAccuracy(); return; }
-  if (S.tab === "aviv") { avRender(); return; }
+  if (S.tab === "aviv") { avRefresh(); return; }
   if (!S.loaded) return;
   const period = periodById($("period").value), d0 = $("d0").value, d1 = $("d1").value;
   requestSnapList(period);
@@ -1591,7 +1591,7 @@ function hydrateSnaps(snaps, period) {
   for (const v of VIEWS) {
     const x = snaps && snaps[v.key];
     if (!x) continue;
-    SNAP.lists[v.key + "|" + period.id] = x.list;
+    SNAP.lists[v.key + "|" + period.id] = x.list; SNAP.ver++;
     for (const id in x.data) SNAP.data[dataKey(v, id, period)] = new Map(x.data[id].map(r => [r[0], {id: r[0], name: r[1], st: r[2], vp: r[3], region: r[4], owner: r[5], vals: r[6]}]));
   }
 }
@@ -1768,7 +1768,9 @@ function loadFrom() {
   const d0 = $("d0").value, period = periodById($("period").value);
   // the forecast as of the start date can be older than the start date itself
   const F = forecastAt(period, endMoment(d0)) || forecastAt(period, endMoment($("d1").value)), t = F && F.t;
-  const f = t ? iso(new Date(t)) : d0;
+  let f = t ? iso(new Date(t)) : d0;
+  // Aviv's tab rebuilds every lead's last Q4 2026 forecast from this history, so for Q4 2026 it reaches back to the earliest of them
+  if (period.id === AV_PERIOD) for (const v of VIEWS) { const x = avLastT(v.key, period); if (x != null && iso(new Date(x)) < f) f = iso(new Date(x)); }
   return f < d0 ? f : d0;
 }
 
@@ -1906,15 +1908,93 @@ const AV_PERIOD = "Q4-2026", AV_QEND = "2026-12-31", AV_DOC = "aviv/" + AV_PERIO
 const AV_FC = ["Commit", "Best Case", "Pipeline", "Next Q Commit", "Next Q Best Case"];
 const AV_CATS = ["Commit", "Best Case", "Pipeline"];
 const AV_COUNTS = c => c === "Commit" || c === "Best Case";
-const avShaka = vp => /Commit/.test(vp || "") ? "Commit" : /Best Case/.test(vp || "") ? "Best Case" : "Pipeline";
-// a forecast value as a colored pill, colored by how it counts here (Next Q Commit as Commit; Omitted and the like as Pipeline)
+// a lead's forecast value as a pill, colored by how it counted in that lead's submission (Commit, Best Case, or not counted)
 const avCls = c => c === "Commit" ? "c" : c === "Best Case" ? "b" : "p";
-const avPill = v => v ? `<span class="fc ${avCls(avShaka(v))}">${esc(v)}</span>` : '<span class="muted">—</span>';
+const avPill = (v, cat, title) => v ? `<span class="fc ${avCls(cat)}"${title ? ` title="${esc(title)}"` : ""}>${esc(v)}</span>` : '<span class="muted">—</span>';
 const avSw = c => AV_CATS.includes(c) ? `<i class="sw ${avCls(c)}" aria-hidden="true"></i>` : "";
 // Shaka's current Q4 judgment (his latest Razieli submission) with its note's lines
-const avShakaJ = () => { const s = rzSubAt("co", AV_PERIOD, Date.now()); return s && s[2] ? {val: s[2], submitted: iso(new Date(s[0])), items: noteItems(s)} : null; };
-const AV = {deals: null, closed: 0, closedN: 0, at: null, src: null, loading: false, err: null, doc: null, docReady: false, unsub: null,
-  timer: null, saving: false, saveErr: null, canWrite: null, uid: null, filter: "all", q: "", dirtyRemote: false, resetArm: false};
+const avShakaJ = () => {
+  const sub = avSubmission("co"), s = rzSubAt("co", AV_PERIOD, sub.wait ? Date.now() : sub.t);
+  return s && Math.round(s[2] / 1000) ? {val: s[2], submitted: iso(new Date(s[0])), items: noteItems(s)} : null;
+};
+const AV = {deals: null, at: null, src: null, loading: false, err: null, doc: null, docReady: false, unsub: null,
+  timer: null, saving: false, saveErr: null, canWrite: null, uid: null, filter: "all", q: "", dirtyRemote: false, resetArm: false,
+  acct: {}, acctReq: new Set()};
+
+/* Shaka's and the region leads' numbers here are their last Q4 2026 submissions, worked out exactly as the Forecast weekly snapshot
+   tab does for each lead's view: Razieli's saved snapshot from Snowflake when there is one, else the deals rebuilt from Salesforce
+   history at the moment of the submission. All products, whatever the product filter. */
+const AV_RL = ["na", "emea", "apac"];
+const AV_WAIT = {loading: "Working out the last forecast submissions…", none: "Shaka has no Q4 2026 forecast submission yet.",
+  snowflake: "Loading Shaka's saved submission from Snowflake…", period: "Shaka's numbers come from the dashboard's Q4 2026 data, and it holds another period's.",
+  noload: "Shaka's numbers come from the dashboard's Q4 2026 data from Salesforce, which hasn't loaded."};
+// the moment of a lead's last Q4 2026 forecast (null when there is none)
+function avLastT(key, period) { const prev = S.view; S.view = key; try { const F = forecastAt(period, null); return F ? F.t : null; } finally { S.view = prev; } }
+// re-render after data arrives; while Aviv is typing only the summary is redrawn, the rest when he leaves the field
+function avRefresh() { if (S.tab !== "aviv") return; if (avEditing()) { AV.dirtyRemote = true; avRenderSummary(); } else avRender(); }
+const avAllVal = it => sum(Object.values(it.s.vals || {}), v => Number(v) || 0);
+let avSubMemo = {};
+// {key, t, rebuilt, by: Map(deal id -> {cat, vp, val}) of the submission's open Commit / Best Case deals, won, wonN, commit, bc, j,
+// total}, or {wait: AV_WAIT key} while it can't be worked out yet
+function avSubmission(key) {
+  if (!S.loaded || S.loaded.period !== AV_PERIOD) return {wait: S.loading ? "loading" : !S.loaded ? "noload" : "period"};
+  if (RAZIELI.loading && !Object.keys(RAZIELI.leads || {}).length) return {wait: "loading"};
+  const dep = [S.opps, RAZIELI, rzMemo, S.subList, SNAP.ver, S.loaded], m = avSubMemo[key];
+  if (m && m.dep.every((x, i) => x === dep[i])) return m.val;
+  const prev = S.view; S.view = key;
+  try {
+    const period = periodById(AV_PERIOD);
+    requestSnapList(period);
+    const F = forecastAt(period, null);
+    if (!F) return {wait: S.subsState === "loading" ? "loading" : "none"};
+    const data = F.snap ? snapData(F.snap, period) : null;
+    if (F.snap && !data) return {wait: "snowflake"};
+    // a rebuild needs history back to the submission; the load reaches back that far (loadFrom), so wait for it rather than guess
+    if (!data && iso(new Date(F.t)) < S.loaded.d0 && needsReload()) { setTimeout(() => { if (!S.loading && needsReload()) load(false); }, 0); return {wait: "loading"}; }
+    const items = data ? snapItemsFrom(data) : snapItems(period, F.t), J = judgmentFor(period.id, F.t);
+    const o = {key, t: F.t, rebuilt: !data, by: new Map(), won: 0, wonN: 0, commit: 0, bc: 0, j: J && Math.round(J.val / 1000) ? J.val : 0};
+    for (const it of items) {
+      const v = avAllVal(it);
+      if (it.s.b === "Won") { o.won += v; if (Math.round(v)) o.wonN++; continue; }
+      const cat = /Commit/.test(it.s.vp || "") ? "Commit" : "Best Case";
+      if (cat === "Commit") o.commit += v; else o.bc += v;
+      o.by.set(it.o.id, {cat, vp: it.s.vp, val: v});
+    }
+    o.total = o.won + o.commit + o.bc + o.j;
+    avSubMemo[key] = {dep, val: o};
+    return o;
+  } finally { S.view = prev; }
+}
+const avRegionKey = region => (VIEWS.find(v => v.regions && v.regions.includes(region)) || {}).key;
+// a lead's call on a deal (pill) as that lead last submitted it; a deal outside the submission shows its value then, uncolored
+function avLeadPill(key, d, sub) {
+  if (!key || !sub || sub.wait) return '<span class="muted">—</span>';
+  const s = sub.by.get(d.id);
+  if (s) return avPill(s.vp, s.cat);
+  const v = VIEWS.find(x => x.key === key), o = S.oppMap.get(d.id);
+  const at = (f, cur) => o ? valueAt(o, f, cur, sub.t) : cur, vp = at(v.field, o ? o[v.fkey] : d[v.fkey]), mad = at("Min_ARR_Date__c", o ? o.mad : d.mad);
+  const nq = /^Next Q/.test(vp || "") && mad ? nextQuarterEnd(mad) : null;
+  return avPill(vp, "Pipeline", /Commit|Best Case/.test(vp || "") ? `Not in ${v.lead}'s Q4 2026 forecast as submitted ${fmtWhen(sub.t)}` +
+    (nq && nq > AV_QEND ? `: Next Q puts it in the quarter after its Min ARR date (${md(mad)})` : "") : "");
+}
+// Aviv's rows: today's open deals that Shaka's or the region lead's forecast has in Commit, Best Case or Pipeline, plus the deals in
+// Shaka's last submission that aren't among them any more (closed since, or moved out of Q4). Each starts as Shaka submitted it:
+// his call, at the deal's ARR in his submission (a deal outside his submission, at today's Salesforce ARR).
+const avExtra = o => ({id: o.id, name: o.name, account: AV.acct[o.id], type: o.type, stage: o.stage, vp: o.vp, rl: o.rl, region: o.region,
+  owner: o.owner, mad: o.mad, arr: o.hasRow ? sum(Object.values(o.arr || {}), v => Number(v) || 0) : 0, extra: true});
+function avRows(st, sub) {
+  const m = new Map((AV.deals || []).map(d => [d.id, d]));
+  for (const id of sub.by.keys()) if (!m.has(id)) { const o = S.oppMap.get(id) || SNAP.stubs.get(id); if (o) m.set(id, avExtra(o)); }
+  return [...m.values()].map(d => avRow(d, st, sub));
+}
+// account names for the deals that come only from Shaka's submission (today's deal query brings everyone else's)
+async function avLoadAccounts(ids) {
+  ids.forEach(id => AV.acctReq.add(id));
+  try {
+    for (const c of chunk(ids, 150)) (await soql(`SELECT Id, Account.Name FROM Opportunity WHERE Id IN (${inList(c)})`)).forEach(r => { AV.acct[r.Id] = (r.Account && r.Account.Name) || ""; });
+  } catch (e) { return; }
+  if (S.tab === "aviv") { if (avEditing()) AV.dirtyRemote = true; else avRenderTable(); }
+}
 const avNum = n => Math.round(Number(n) || 0).toLocaleString("en-US");
 // "1.5M", "250k", "$1,200,000", "-260000" -> number; null when it isn't one
 function avParse(s) {
@@ -1925,34 +2005,34 @@ function avParse(s) {
 const avHash = s => { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return (h >>> 0).toString(36); };
 const avDefaultAdds = () => { const J = avShakaJ(); return J ? J.items.filter(it => it.amount).map((it, i) => ({id: "j" + i, name: it.label, amt: it.amount, note: `Shaka's judgment, ${dmy(J.submitted)}`})) : []; };
 const avState = () => { const d = AV.doc || {}; return {calls: d.calls || {}, adds: Array.isArray(d.adds) ? d.adds : avDefaultAdds()}; };
-const avRow = (d, st) => { const s = avShaka(d.vp), c = st.calls[d.id]; return {d, s, c, cat: (c && c.cat) || s, amt: c && c.amt != null ? c.amt : d.arr}; };
+// def / base: Shaka's call and the deal's ARR as he submitted them (Pipeline at today's ARR for a deal outside his submission)
+const avRow = (d, st, sub) => {
+  const s = sub.by.get(d.id), c = st.calls[d.id], def = s ? s.cat : "Pipeline", base = s ? s.val : d.arr;
+  return {d, s, c, def, base, cat: (c && c.cat) || def, amt: c && c.amt != null ? c.amt : base};
+};
 
 async function avLoadLive() {
-  const sel = "SELECT Id, Opportunity__c, Product__r.Name, ARR_Dollar__c, Opportunity__r.Name, Opportunity__r.Account.Name, Opportunity__r.Type, Opportunity__r.StageName, Opportunity__r.VP_Forecast__c, Opportunity__r.Region_Lead_Forecast__c, Opportunity__r.Region__c, Opportunity__r.Owner.Name FROM ARR_Breakdown__c";
+  const sel = "SELECT Id, Opportunity__c, Product__r.Name, ARR_Dollar__c, Opportunity__r.Name, Opportunity__r.Account.Name, Opportunity__r.Type, Opportunity__r.StageName, Opportunity__r.VP_Forecast__c, Opportunity__r.Region_Lead_Forecast__c, Opportunity__r.Region__c, Opportunity__r.Owner.Name, Opportunity__r.Min_ARR_Date__c FROM ARR_Breakdown__c";
   const fc = AV_FC.map(q).join(",");
-  const [rows, agg] = await Promise.all([
-    soqlAll(sel, `ARR_End_Date__c = ${AV_QEND} AND (Opportunity__r.VP_Forecast__c IN (${fc}) OR Opportunity__r.Region_Lead_Forecast__c IN (${fc})) AND Opportunity__r.StageName NOT IN ('Closed Won','Committed','Closed Lost','Merged')`, 2000),
-    soql(`SELECT SUM(ARR_Dollar__c) a, COUNT_DISTINCT(Opportunity__c) n FROM ARR_Breakdown__c WHERE ARR_End_Date__c = ${AV_QEND} AND Opportunity__r.StageName IN (${WON.map(q).join(",")})`)
-  ]);
+  const rows = await soqlAll(sel, `ARR_End_Date__c = ${AV_QEND} AND (Opportunity__r.VP_Forecast__c IN (${fc}) OR Opportunity__r.Region_Lead_Forecast__c IN (${fc})) AND Opportunity__r.StageName NOT IN ('Closed Won','Committed','Closed Lost','Merged')`, 2000);
   const m = new Map();
   rows.forEach(r => {
     const x = r.Opportunity__r || {};
     let d = m.get(r.Opportunity__c);
     if (!d) m.set(r.Opportunity__c, d = {id: r.Opportunity__c, name: x.Name, account: x.Account && x.Account.Name, type: x.Type, stage: x.StageName, vp: x.VP_Forecast__c,
-      rl: x.Region_Lead_Forecast__c, region: x.Region__c, owner: x.Owner && x.Owner.Name, arr: 0});
+      rl: x.Region_Lead_Forecast__c, region: x.Region__c, owner: x.Owner && x.Owner.Name, mad: x.Min_ARR_Date__c, arr: 0});
     d.arr += Number(r.ARR_Dollar__c) || 0;
   });
-  const a = agg[0] || {};
-  return {deals: [...m.values()].filter(d => Math.round(d.arr)), closed: Number(a.a) || 0, closedN: Number(a.n) || 0, at: S.storedAt || Date.now()};
+  return {deals: [...m.values()].filter(d => Math.round(d.arr)), at: S.storedAt || Date.now()};
 }
 // owners and editors keep the shared copy of the deal list current; written only when the deals changed
 async function avSaveShared(b) {
   if (!S.db || !S.canWrite) return;
   try {
-    const body = JSON.stringify({deals: b.deals, closed: b.closed, closedN: b.closedN}), sig = body.length + ":" + avHash(body);
+    const body = JSON.stringify({deals: b.deals}), sig = body.length + ":" + avHash(body);
     const ref = S.db.doc(AV_SHARED), cur = await ref.get();
     if (cur.exists && cur.data().sig === sig) return;
-    const z = await gzipB64(JSON.stringify({deals: b.deals, closed: b.closed, closedN: b.closedN, at: b.at}));
+    const z = await gzipB64(JSON.stringify({deals: b.deals, at: b.at}));
     if (z.length < 240000) await dbWrite(() => ref.set({z, sig, at: b.at}));
   } catch (e) {}
 }
@@ -1975,7 +2055,7 @@ async function avLoad(refresh) {
   AV.loading = true; AV.err = null; avRender();
   try {
     const b = await avFetch(refresh);
-    if (b) Object.assign(AV, {deals: b.deals, closed: b.closed, closedN: b.closedN, at: b.at, src: b.src});
+    if (b) Object.assign(AV, {deals: b.deals, at: b.at, src: b.src});
     else AV.err = "This tab needs the Salesforce connector, and there's no saved copy of the deal list yet. It's saved each time the dashboard owner or an editor opens this tab.";
   } catch (e) {
     AV.err = e && e.code === "tool_error" ? `Salesforce returned an error: ${e.message || ""}` : `Couldn't load the deals${e && e.message ? ": " + e.message : "."}`;
@@ -1999,14 +2079,16 @@ const avEditing = () => { const a = document.activeElement; return !!(a && a.clo
 // Inputs stay locked for viewers who can't edit, until Aviv's saved inputs have loaded, and (in the app, while the list of
 // added amounts still follows Shaka) until Shaka's judgment lines have come from Razieli
 const avJReady = () => !S.app || Array.isArray((AV.doc || {}).adds) || (!RAZIELI.loading && Object.keys(RAZIELI.leads || {}).length > 0);
-const avLocked = () => AV.canWrite === false || !AV.docReady || !!AV.readErr || !avJReady();
+// (and until Shaka's submission is known, since every deal starts from it)
+const avLocked = () => AV.canWrite === false || !AV.docReady || !!AV.readErr || !avJReady() || !!avSubmission("co").wait;
 
 /* edits: change the local copy at once, save after a short pause (one write at a time) */
 function avEdit(mut) {
   if (avLocked()) { avRender(); return; }
-  const st = avState(), x = {calls: {...st.calls}, adds: st.adds.map(a => ({...a}))};
+  const st = avState(), own = Array.isArray((AV.doc || {}).adds), x = {calls: {...st.calls}, adds: st.adds.map(a => ({...a}))}, was = JSON.stringify(x.adds);
   mut(x);
-  AV.doc = {...(AV.doc || {}), calls: x.calls, adds: x.adds};
+  // added amounts stay Shaka's judgment lines (nothing saved) until Aviv changes one; adds: null goes back to them
+  AV.doc = {...(AV.doc || {}), calls: x.calls, adds: x.adds === null ? undefined : own || JSON.stringify(x.adds) !== was ? x.adds : undefined};
   clearTimeout(AV.timer); AV.timer = setTimeout(avFlush, 700);
   avRenderSummary(); avSaveNote();
 }
@@ -2029,49 +2111,62 @@ async function avFlush() {
 function avSaveNote() {
   const el = $("avSave"); if (!el) return;
   const t = AV.doc && AV.doc.updatedAt;
-  const wait = AV.readErr || (!AV.docReady ? "Loading Aviv's saved inputs…" : !avJReady() ? (S.rzErr ? "Can't edit until Shaka's judgment loads from Razieli. Reload to try again." : "Loading Shaka's judgment from Razieli…") : "");
+  const sw = avSubmission("co").wait;
+  const wait = AV.readErr || (!AV.docReady ? "Loading Aviv's saved inputs…" : !avJReady() ? (S.rzErr ? "Can't edit until Shaka's judgment loads from Razieli. Reload to try again." : "Loading Shaka's judgment from Razieli…")
+    : sw ? (sw === "period" ? "Can't edit until the Q4 2026 data loads." : AV_WAIT[sw]) : "");
   el.className = AV.saveErr || AV.readErr ? "neg" : "muted";
   el.textContent = AV.saveErr || wait || (AV.timer || AV.saving ? "Saving…" : t ? `Saved ${fmtStamp(t)}` : AV.canWrite === false ? "View only" : "Following Shaka until Aviv changes something");
 }
 
+// Shaka's and the region leads' figures are their last submissions; Aviv's is Shaka's submission with Aviv's changes: closed as
+// Shaka submitted it, each deal at Aviv's call and amount (Shaka's by default), plus Aviv's added amounts
 function avTotals() {
-  const st = avState(), o = {sh: {Commit: 0, "Best Case": 0}, rl: {Commit: 0, "Best Case": 0}, av: {Commit: 0, "Best Case": 0}, n: {Commit: 0, "Best Case": 0}, changed: 0};
-  for (const d of AV.deals || []) {
-    const r = avRow(d, st), rl = avShaka(d.rl);
-    if (AV_COUNTS(r.s)) o.sh[r.s] += d.arr;
-    if (AV_COUNTS(rl)) o.rl[rl] += d.arr;
+  const st = avState(), sub = avSubmission("co");
+  if (sub.wait) return {wait: sub.wait};
+  const rls = AV_RL.map(avSubmission), o = {sub, rls, av: {Commit: 0, "Best Case": 0}, n: {Commit: 0, "Best Case": 0}, changed: 0};
+  for (const r of avRows(st, sub)) {
     if (AV_COUNTS(r.cat)) { o.av[r.cat] += r.amt; o.n[r.cat]++; }
     if (r.c) o.changed++;
   }
-  const J = avShakaJ();
-  o.shJ = J ? J.val : 0; o.add = sum(st.adds, a => Number(a.amt) || 0); o.nAdd = st.adds.length;
-  o.shT = AV.closed + o.sh.Commit + o.sh["Best Case"] + o.shJ;
-  o.rlJ = sum(["na", "emea", "apac"], k => { const s = rzSubAt(k, AV_PERIOD, Date.now()); return s ? s[2] : 0; });
-  o.rlT = AV.closed + o.rl.Commit + o.rl["Best Case"] + o.rlJ;
-  o.avT = AV.closed + o.av.Commit + o.av["Best Case"] + o.add;
+  o.closed = sub.won; o.closedN = sub.wonN; o.sh = {Commit: sub.commit, "Best Case": sub.bc}; o.shJ = sub.j; o.shT = sub.total;
+  const rs = k => sum(rls, x => x[k] || 0);
+  o.rlReady = rls.every(x => !x.wait || x.wait === "none"); o.rl = {Commit: rs("commit"), "Best Case": rs("bc")}; o.rlWon = rs("won"); o.rlJ = rs("j"); o.rlT = rs("total");
+  o.add = sum(st.adds, a => Number(a.amt) || 0); o.nAdd = st.adds.length;
+  o.avT = o.closed + o.av.Commit + o.av["Best Case"] + o.add;
   return o;
+}
+const avWhen = t => fmtWhen(t).replace(/ \d{4},/, ",");
+const avDeals = n => `${n} deal${n === 1 ? "" : "s"}`;
+function avWaitHtml(w) {
+  return `<p class="note">${esc(AV_WAIT[w])}${w === "period" || w === "noload" ? ` <button type="button" class="btn" id="avLoadQ4">Load Q4 2026</button>` : ""}</p>`;
+}
+function avBindWait() {
+  const b = $("avLoadQ4"); if (b) b.addEventListener("click", () => { $("period").value = AV_PERIOD; store.set("period", AV_PERIOD); b.disabled = true; load(false); });
 }
 function avRenderSummary() {
   const el = $("avSummary");
   if (!AV.deals) { el.innerHTML = ""; return; }
-  const t = avTotals(), d = t.avT - t.shT, cls = v => Math.round(v) < 0 ? "neg" : Math.round(v) > 0 ? "pos" : "";
-  const dl = v => Math.round(v) ? (v > 0 ? "+" : "") + fmt(v) : "–";
-  const parts = [["Closed won and committed", AV.closed, "--won", `${AV.closedN} deals`], ["Commit", t.av.Commit, "--commit", `${t.n.Commit} deals`],
-    ["Best Case", t.av["Best Case"], "--bc", `${t.n["Best Case"]} deals`], ["Added by Aviv", t.add, "--judg", `${t.nAdd} line${t.nAdd === 1 ? "" : "s"}`]];
+  const t = avTotals();
+  if (t.wait) { el.innerHTML = avWaitHtml(t.wait); avBindWait(); return; }
+  const d = t.avT - t.shT, cls = v => Math.round(v) < 0 ? "neg" : Math.round(v) > 0 ? "pos" : "";
+  const dl = v => Math.round(v) ? (v > 0 ? "+" : "") + fmt(v) : "–", rl = v => t.rlReady ? fmt(v) : "…";
+  const parts = [["Closed won and committed", t.closed, "--won", `${avDeals(t.closedN)}, as Shaka submitted`], ["Commit", t.av.Commit, "--commit", avDeals(t.n.Commit)],
+    ["Best Case", t.av["Best Case"], "--bc", avDeals(t.n["Best Case"])], ["Added by Aviv", t.add, "--judg", `${t.nAdd} line${t.nAdd === 1 ? "" : "s"}`]];
   const span = sum(parts, p => Math.max(0, p[1]));
-  const rows = [["Closed won and committed", AV.closed, AV.closed, AV.closed], ["Commit", t.sh.Commit, t.av.Commit, t.rl.Commit], ["Best Case", t.sh["Best Case"], t.av["Best Case"], t.rl["Best Case"]],
+  const rows = [["Closed won and committed", t.closed, t.closed, t.rlWon], ["Commit", t.sh.Commit, t.av.Commit, t.rl.Commit], ["Best Case", t.sh["Best Case"], t.av["Best Case"], t.rl["Best Case"]],
     ["Judgment / added by Aviv", t.shJ, t.add, t.rlJ]];
+  const leads = AV_RL.map((k, i) => { const v = VIEWS.find(x => x.key === k), s = t.rls[i]; return `${v.lead} ${s.wait === "none" ? "no Q4 submission" : s.wait ? "…" : avWhen(s.t)}`; }).join(" · ");
   el.innerHTML = `<div class="avtot"><div><div class="v">${fmt(t.avT)}</div><div class="l">Aviv's forecast</div></div>` +
-    `<div><div class="v muted">${fmt(t.shT)}</div><div class="l">Shaka's forecast, incl. his judgment</div></div>` +
-    `<div><div class="v muted">${fmt(t.rlT)}</div><div class="l">Region leads' forecast, incl. their judgments</div></div>` +
+    `<div><div class="v muted">${fmt(t.shT)}</div><div class="l">Shaka's forecast as submitted ${esc(avWhen(t.sub.t))}, incl. his judgment</div></div>` +
+    `<div><div class="v muted">${rl(t.rlT)}</div><div class="l">Region leads' forecasts as last submitted, incl. their judgments (${esc(leads)})</div></div>` +
     `<div><div class="v ${cls(d)}">${dl(d)}</div><div class="l">Aviv vs Shaka · ${t.changed ? `${t.changed} deal${t.changed === 1 ? "" : "s"} changed` : "no deals changed"}</div></div></div>` +
     `<div class="bar" role="img" aria-label="${esc(parts.map(p => `${p[0]} ${full(p[1])}`).join(", "))}">` +
     parts.map(p => `<div style="width:${span ? Math.max(0, p[1]) / span * 100 : 0}%;background:var(${p[2]})" title="${esc(p[0])}: ${full(p[1])}"></div>`).join("") + `</div>` +
     `<div class="legend" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">` +
     parts.map(p => `<div style="border-color:var(${p[2]})"><div class="v">${fmt(p[1])}</div><div class="l">${esc(p[0])}, ${esc(p[3])}</div></div>`).join("") + `</div>` +
     `<div class="scroll avcmp"><table><thead><tr><th></th><th class="n">Shaka</th><th class="n">Region leads</th><th class="n">Aviv</th><th class="n">Aviv vs Shaka</th></tr></thead><tbody>` +
-    rows.map(r => `<tr><td>${avSw(r[0])}${esc(r[0])}</td><td class="n">${fmt(r[1])}</td><td class="n">${fmt(r[3])}</td><td class="n">${fmt(r[2])}</td><td class="n ${cls(r[2] - r[1])}">${dl(r[2] - r[1])}</td></tr>`).join("") +
-    `<tr class="tot"><td>Forecast</td><td class="n">${fmt(t.shT)}</td><td class="n">${fmt(t.rlT)}</td><td class="n">${fmt(t.avT)}</td><td class="n ${cls(d)}">${dl(d)}</td></tr></tbody></table></div>`;
+    rows.map(r => `<tr><td>${avSw(r[0])}${esc(r[0])}</td><td class="n">${fmt(r[1])}</td><td class="n">${rl(r[3])}</td><td class="n">${fmt(r[2])}</td><td class="n ${cls(r[2] - r[1])}">${dl(r[2] - r[1])}</td></tr>`).join("") +
+    `<tr class="tot"><td>Forecast</td><td class="n">${fmt(t.shT)}</td><td class="n">${rl(t.rlT)}</td><td class="n">${fmt(t.avT)}</td><td class="n ${cls(d)}">${dl(d)}</td></tr></tbody></table></div>`;
   const tot = $("avAddTot"); if (tot) tot.textContent = full(t.add);
 }
 function avRenderAdds() {
@@ -2085,31 +2180,39 @@ function avRenderAdds() {
     : `<p class="note">Nothing added yet. Use Add an amount for a deal or a number that isn't in Salesforce.</p>`) +
     `<div class="avadd tot"><b>Total added</b><b id="avAddTot">${full(sum(st.adds, a => Number(a.amt) || 0))}</b></div>`;
 }
-function avRowHtml(r) {
-  const d = r.d, dis = avLocked() ? " disabled" : "";
+function avRowHtml(r, sub) {
+  const d = r.d, dis = avLocked() ? " disabled" : "", rk = avRegionKey(d.region), none = '<span class="muted">—</span>';
   return `<tr data-id="${esc(d.id)}"${r.c ? ' class="chg"' : ""}><td><a href="${SF_URL(d.id)}" target="_blank" rel="noopener">${esc(d.name)}</a><br><span class="chip">${esc(d.type || "")}</span> <span class="chip">${esc(d.region || "")}</span></td>` +
-    `<td>${esc(d.account || "")}</td><td>${esc(d.owner || "")}</td><td>${esc(d.stage || "")}</td><td>${avPill(d.vp)}</td><td>${avPill(d.rl)}</td>` +
+    `<td>${esc(d.account || "")}</td><td>${esc(d.owner || "")}</td><td>${esc(d.stage || "")}</td><td>${avLeadPill("co", d, sub)}</td><td>${avLeadPill(rk, d, rk ? avSubmission(rk) : null)}</td>` +
     `<td><select id="avc-${esc(d.id)}" data-cat="${esc(r.cat)}" aria-label="Aviv's call on ${esc(d.name)}"${dis}>${AV_CATS.map(c => `<option${c === r.cat ? " selected" : ""}>${c}</option>`).join("")}</select></td>` +
-    `<td class="n">${full(d.arr)}</td>` +
-    `<td class="n"><input class="amt" id="ava-${esc(d.id)}" inputmode="decimal" placeholder="${esc(avNum(d.arr))}" value="${r.c && r.c.amt != null ? esc(avNum(r.c.amt)) : ""}" aria-label="Aviv's amount for ${esc(d.name)}"${dis}></td>` +
+    `<td class="n">${r.s ? full(r.s.val) : none}</td><td class="n">${d.extra && !Math.round(d.arr) ? none : full(d.arr)}</td>` +
+    `<td class="n"><input class="amt" id="ava-${esc(d.id)}" inputmode="decimal" placeholder="${esc(avNum(r.base))}" value="${r.c && r.c.amt != null ? esc(avNum(r.c.amt)) : ""}" aria-label="Aviv's amount for ${esc(d.name)}"${dis}></td>` +
     `<td class="n avv">${AV_COUNTS(r.cat) ? full(r.amt) : '<span class="muted">not counted</span>'}</td></tr>`;
 }
 function avFootHtml() {
-  const st = avState(), ids = new Set([...document.querySelectorAll("#avTable tbody tr[data-id]")].map(tr => tr.dataset.id));
-  const rs = (AV.deals || []).filter(d => ids.has(d.id)).map(d => avRow(d, st));
-  return `<tr class="tot"><td colspan="7">${rs.length} deals</td><td class="n">${full(sum(rs, r => r.d.arr))}</td><td></td><td class="n">${full(sum(rs.filter(r => AV_COUNTS(r.cat)), r => r.amt))}</td></tr>`;
+  const sub = avSubmission("co");
+  if (sub.wait) return "";
+  const ids = new Set([...document.querySelectorAll("#avTable tbody tr[data-id]")].map(tr => tr.dataset.id));
+  const rs = avRows(avState(), sub).filter(r => ids.has(r.d.id));
+  return `<tr class="tot"><td colspan="7">${rs.length} deals</td><td class="n">${full(sum(rs, r => r.s ? r.s.val : 0))}</td><td class="n">${full(sum(rs, r => r.d.arr))}</td><td></td>` +
+    `<td class="n">${full(sum(rs.filter(r => AV_COUNTS(r.cat)), r => r.amt))}</td></tr>`;
 }
 function avRenderTable() {
-  const st = avState(), q = AV.q.trim().toLowerCase(), all = (AV.deals || []).map(d => avRow(d, st));
+  const sub = avSubmission("co");
+  if (sub.wait) { $("avFilt").innerHTML = ""; $("avTable").innerHTML = `<tbody><tr><td class="muted">${esc(AV_WAIT[sub.wait])}</td></tr></tbody>`; return; }
+  const st = avState(), q = AV.q.trim().toLowerCase(), all = avRows(st, sub);
+  const need = all.filter(r => r.d.extra && r.d.account == null && !AV.acctReq.has(r.d.id)).map(r => r.d.id);
+  if (need.length && S.mcp) avLoadAccounts(need);
   const n = {all: all.length, chg: all.filter(r => r.c).length};
   AV_CATS.forEach(c => n[c] = all.filter(r => r.cat === c).length);
   const opts = [["all", "All"], ["Commit", "Commit"], ["Best Case", "Best Case"], ["Pipeline", "Pipeline"], ["chg", "Changed by Aviv"]];
   $("avFilt").innerHTML = opts.map(([k, l]) => `<button type="button" data-f="${k}" aria-pressed="${AV.filter === k}">${avSw(k)}${l} <span class="muted">${n[k]}</span></button>`).join("");
   const rows = all.filter(r => (AV.filter === "all" || (AV.filter === "chg" ? !!r.c : r.cat === AV.filter)) && (!q || `${r.d.name} ${r.d.account || ""} ${r.d.owner} ${r.d.region}`.toLowerCase().includes(q)))
-    .sort((a, b) => b.d.arr - a.d.arr);
-  $("avDealsTitle").textContent = `Open deals (${all.length})`;
-  $("avTable").innerHTML = `<thead><tr><th>Deal</th><th>Account</th><th>Owner</th><th>Stage</th><th>Shaka</th><th>Region lead</th><th>Aviv's call</th><th class="n">ARR in Salesforce</th><th class="n">Aviv's amount</th><th class="n">In Aviv's forecast</th></tr></thead>` +
-    `<tbody>${rows.length ? rows.map(avRowHtml).join("") : `<tr><td colspan="10" class="muted">No deals match.</td></tr>`}</tbody><tfoot></tfoot>`;
+    .sort((a, b) => b.base - a.base);
+  $("avDealsTitle").textContent = `Deals (${all.length})`;
+  $("avTable").innerHTML = `<thead><tr><th>Deal</th><th>Account</th><th>Owner</th><th>Stage today</th><th>Shaka, as submitted</th><th>Region lead, as submitted</th><th>Aviv's call</th>` +
+    `<th class="n">ARR in Shaka's forecast</th><th class="n">ARR in Salesforce today</th><th class="n">Aviv's amount</th><th class="n">In Aviv's forecast</th></tr></thead>` +
+    `<tbody>${rows.length ? rows.map(r => avRowHtml(r, sub)).join("") : `<tr><td colspan="11" class="muted">No deals match.</td></tr>`}</tbody><tfoot></tfoot>`;
   $("avTable").querySelector("tfoot").innerHTML = avFootHtml();
 }
 function avRender() {
@@ -2130,19 +2233,25 @@ function avRender() {
     (AV.deals && !locked && !RAZIELI.loading && Object.keys(RAZIELI.leads || {}).length > 0 ? `<button type="button" class="btn" id="avReset">${AV.resetArm ? "Click again to reset everything to Shaka's" : "Reset to Shaka's"}</button>` : "") +
     (S.mcp && S.mode !== "shared" ? `<button type="button" class="btn" id="avRefresh"${AV.loading ? " disabled" : ""}>${AV.loading ? "Loading…" : "Refresh deals"}</button>` : "");
   avSaveNote();
-  const rf = $("avRefresh"); if (rf) rf.addEventListener("click", () => avLoad(true));
+  // refreshing also re-reads the data Shaka's and the region leads' submissions are worked out from (and Razieli)
+  const rf = $("avRefresh"); if (rf) rf.addEventListener("click", () => { avLoad(true); if (S.loaded && S.loaded.period === AV_PERIOD) load(true); });
   const rs = $("avReset"); if (rs) rs.addEventListener("click", () => {
     if (!AV.resetArm) { AV.resetArm = true; avRender(); setTimeout(() => { if (AV.resetArm) { AV.resetArm = false; avRender(); } }, 5000); return; }
-    AV.resetArm = false; avEdit(x => { x.calls = {}; x.adds = avDefaultAdds(); }); avRender();
+    AV.resetArm = false; avEdit(x => { x.calls = {}; x.adds = null; }); avRender();
   });
   if (!AV.deals) {
     $("avNote").textContent = AV.loading ? "Loading the open Q4 2026 deals from Salesforce…" : AV.err || "Connecting to Salesforce…";
     ["avSummary", "avAdds", "avTable", "avFilt"].forEach(id => $(id).innerHTML = "");
     return;
   }
-  $("avNote").textContent = `What Aviv, the founder, expects Q4 2026 to close at, next to Shaka's forecast. Everything closed, plus the open deals Aviv has in Commit or Best Case, plus what he added. ` +
-    (AV.src === "live" ? `Deals live from Salesforce, loaded ${fmtStamp(AV.at)}.` : `Deals as of ${fmtStamp(AV.at)}, from the copy saved when the dashboard owner or an editor last opened this tab (you don't have the Salesforce connector).`) +
-    ` ARR is each deal's ARR $ (Potential) at 31 Dec 2026. Shaka's judgment is ${rzSource(false)}.` +
+  const sub = avSubmission("co");
+  $("avNote").textContent = `What Aviv, the founder, expects Q4 2026 to close at, next to the forecasts Shaka and the region leads last submitted. ` +
+    `Aviv's forecast starts as Shaka's last submission${sub.wait ? "" : ` (${avWhen(sub.t)})`}, exactly as the Forecast weekly snapshot tab shows it for the Company (with today as its end date and all products): everything closed then, ` +
+    `the deals Shaka had in Commit and Best Case at their ARR then, and his judgment lines. With no changes it equals Shaka's; it moves only with Aviv's calls, amounts and added amounts, ` +
+    `and the deals Aviv hasn't changed follow Shaka when he submits again. ` +
+    (sub.wait ? "" : sub.rebuilt ? "Shaka's deals are rebuilt from Salesforce history at the moment he submitted. " : "Shaka's deals are Razieli's saved snapshot of his submission (Snowflake). ") +
+    (AV.src === "live" ? `Today's deals and ARR are live from Salesforce, loaded ${fmtStamp(AV.at)}.` : `Today's deals as of ${fmtStamp(AV.at)}, from the copy saved when the dashboard owner or an editor last opened this tab (you don't have the Salesforce connector).`) +
+    ` ARR is each deal's ARR $ (Potential) at 31 Dec 2026. Judgments are ${rzSource(false)}.` +
     (ro ? (S.app ? " You can view this tab but not change it; the dashboard owner decides who can." : " You can view this tab but not change it: Contributor access or above is needed to edit.") : "");
   avRenderSummary(); avRenderAdds(); avRenderTable();
   AV.dirtyRemote = false;
@@ -2151,21 +2260,22 @@ function avInit() {
   $("avSearch").addEventListener("input", e => { AV.q = e.target.value; avRenderTable(); });
   $("avFilt").addEventListener("click", e => { const b = e.target.closest("[data-f]"); if (!b) return; AV.filter = b.dataset.f; avRenderTable(); });
   $("avTable").addEventListener("change", e => {
-    const tr = e.target.closest("tr[data-id]"); if (!tr) return;
-    const id = tr.dataset.id, d = (AV.deals || []).find(x => x.id === id); if (!d) return;
+    const tr = e.target.closest("tr[data-id]"), sub = avSubmission("co"); if (!tr || sub.wait) return;
+    const id = tr.dataset.id, r0 = avRows(avState(), sub).find(r => r.d.id === id); if (!r0) return;
     const sel = tr.querySelector("select"), inp = tr.querySelector("input.amt"), prev = avState().calls[id];
     let amt = null;
     if (inp.value.trim()) { amt = avParse(inp.value); if (amt == null) { inp.value = prev && prev.amt != null ? avNum(prev.amt) : ""; return; } }
-    const cat = sel.value;
-    avEdit(x => { if (cat === avShaka(d.vp) && (amt == null || amt === Math.round(d.arr))) delete x.calls[id]; else x.calls[id] = {cat, amt: amt === Math.round(d.arr) ? null : amt}; });
-    const r = avRow(d, avState());
+    // a call and amount that are Shaka's (as submitted) aren't kept, so the deal goes on following him
+    const cat = sel.value, base = Math.round(r0.base);
+    avEdit(x => { if (cat === r0.def && (amt == null || amt === base)) delete x.calls[id]; else x.calls[id] = {cat, amt: amt === base ? null : amt}; });
+    const r = avRow(r0.d, avState(), sub);
     tr.classList.toggle("chg", !!r.c);
     sel.dataset.cat = r.cat;
     inp.value = r.c && r.c.amt != null ? avNum(r.c.amt) : "";
     tr.querySelector(".avv").innerHTML = AV_COUNTS(r.cat) ? full(r.amt) : '<span class="muted">not counted</span>';
     $("avTable").querySelector("tfoot").innerHTML = avFootHtml();
   });
-  $("avTable").addEventListener("focusout", () => setTimeout(() => { if (AV.dirtyRemote && !avEditing() && !AV.timer && !AV.saving) avRender(); }, 0));
+  $("tabAviv").addEventListener("focusout", () => setTimeout(() => { if (AV.dirtyRemote && !avEditing() && !AV.timer && !AV.saving) avRender(); }, 0));
   $("avAdds").addEventListener("change", e => {
     const row = e.target.closest(".avadd[data-id]"); if (!row) return;
     const id = row.dataset.id, a = avState().adds.find(x => x.id === id); if (!a) return;
@@ -2200,7 +2310,7 @@ async function loadRazieli(refresh) {
   renderAppBar();
   if (S.cal) renderCal();
   if (S.tab === "acc") renderAccuracy();
-  if (S.tab === "aviv") avRender();
+  if (S.tab === "aviv") avRefresh();
   if (S.loaded && !S.loading) { if (needsReload()) load(false); else render(); }
 }
 // Razieli submissions in the shape of #forecast-update posts (Israel date and time), for the calendar
@@ -2225,7 +2335,7 @@ function renderAppBar() {
   const s = S.session && S.session.snowflake;
   $("appBar").innerHTML = (S.rzErr ? `<div class="banner">${esc(S.rzErr)}</div>` : "") +
     (S.sfMsg ? `<div class="banner">The Snowflake sign-in didn't complete: ${esc(S.sfMsg)}</div>` : "") + (!s ? ""
-    : !s.configured ? `<div class="banner info">Exact submission snapshots come from Snowflake, read with each viewer's own Snowflake sign-in, which isn't set up for this app yet. Until then each forecast is rebuilt from Salesforce history.</div>`
+    : !s.configured ? `<div class="banner info">Snowflake isn't connected for this app yet: the data team still has to set up the Snowflake sign-in. Once they do, a Connect Snowflake button appears here and each forecast shows exactly as it was submitted (Razieli's saved snapshots). Until then each forecast is rebuilt from Salesforce history, which can't see bookings deleted after a submission.</div>`
     : !s.connected ? `<div class="banner info">Connect Snowflake to see each forecast exactly as it was submitted (Razieli's saved snapshots, read with your own Snowflake access). Until then each forecast is rebuilt from Salesforce history. <a class="btn primary" href="/oauth/snowflake/start" style="display:inline-block;margin-left:8px;text-decoration:none">Connect Snowflake</a></div>`
     : `<p class="muted" style="font-size:13px;margin:0 0 12px">Snowflake: signed in${s.user ? ` as ${esc(String(s.user).toLowerCase())}` : ""}. <button type="button" class="btn" id="sfOut">Disconnect</button></p>`);
   const b = $("sfOut");

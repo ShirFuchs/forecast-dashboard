@@ -185,7 +185,7 @@ const SOQL_ALLOW = Object.fromEntries(Object.entries({
   ARR_Breakdown__c: "Id Opportunity__c Product__r.Name ARR_Dollar__c ARR_End_Date__c First_Deal_ARR__c Opportunity__r.Name Opportunity__r.Type " +
     "Opportunity__r.StageName Opportunity__r.VP_Forecast__c Opportunity__r.Region_Lead_Forecast__c Opportunity__r.Region__c Opportunity__r.Owner.Name Opportunity__r.Account.Name " +
     "Opportunity__r.CreatedDate Opportunity__r.Min_ARR_Date__c Opportunity__r.Min_ARR_Period_Amount_Dollar__c Opportunity__r.LastModifiedDate",
-  Opportunity: "Id Name Type StageName VP_Forecast__c Region_Lead_Forecast__c Region__c Owner.Name CreatedDate Min_ARR_Date__c Min_ARR_Period_Amount_Dollar__c",
+  Opportunity: "Id Name Type StageName VP_Forecast__c Region_Lead_Forecast__c Region__c Owner.Name CreatedDate Min_ARR_Date__c Min_ARR_Period_Amount_Dollar__c Account.Name",
   OpportunityFieldHistory: "Id OpportunityId Field OldValue NewValue CreatedDate CreatedBy.Name",
   Booking__c: "Id Opportunity__c Product__r.Name ARR_Start_Date__c ARR_End_Date__c ARR_Base_Amount__c ARRDollar__c Conversion_Rate_USD_new__c CreatedDate",
   Booking__History: "Id ParentId Field OldValue NewValue CreatedDate",

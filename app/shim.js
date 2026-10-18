@@ -65,7 +65,9 @@
       if (mc[id] === undefined) delete calls[id]; else calls[id] = mc[id];
     }
     const out = {calls};
-    if (Array.isArray(mine.adds) || Array.isArray(base.adds)) {
+    // no added amounts on the page while it had some: it went back to Shaka's judgment lines (Reset), saved as none
+    if (!Array.isArray(mine.adds) && Array.isArray(base.adds)) return out;
+    if (Array.isArray(mine.adds)) {
       const ba = new Map((base.adds || []).map(a => [a.id, a])), ma = new Map((mine.adds || []).map(a => [a.id, a]));
       let adds = Array.isArray(latest.adds) ? latest.adds.slice() : [];
       for (const id of ba.keys()) if (!ma.has(id)) adds = adds.filter(a => a.id !== id);
