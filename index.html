@@ -1967,16 +1967,18 @@ function avSubmission(key) {
 }
 const avRegionKey = region => (VIEWS.find(v => v.regions && v.regions.includes(region)) || {}).key;
 // a lead's call on a deal (pill) as that lead last submitted it; a deal outside the submission shows its value then, uncolored
-function avLeadPill(key, d, sub) {
-  if (!key || !sub || sub.wait) return '<span class="muted">—</span>';
+// {vp, cat, why}: the lead's value for the deal then, how it counted (Commit, Best Case, or Pipeline for not at all) and why not
+function avLeadCall(key, d, sub) {
+  if (!key || !sub || sub.wait) return null;
   const s = sub.by.get(d.id);
-  if (s) return avPill(s.vp, s.cat);
+  if (s) return {vp: s.vp, cat: s.cat, why: ""};
   const v = VIEWS.find(x => x.key === key), o = S.oppMap.get(d.id);
   const at = (f, cur) => o ? valueAt(o, f, cur, sub.t) : cur, vp = at(v.field, o ? o[v.fkey] : d[v.fkey]), mad = at("Min_ARR_Date__c", o ? o.mad : d.mad);
   const nq = /^Next Q/.test(vp || "") && mad ? nextQuarterEnd(mad) : null;
-  return avPill(vp, "Pipeline", /Commit|Best Case/.test(vp || "") ? `Not in ${v.lead}'s Q4 2026 forecast as submitted ${fmtWhen(sub.t)}` +
-    (nq && nq > AV_QEND ? `: Next Q puts it in the quarter after its Min ARR date (${md(mad)})` : "") : "");
+  return {vp, cat: "Pipeline", why: /Commit|Best Case/.test(vp || "") ? `Not in ${v.lead}'s Q4 2026 forecast as submitted ${fmtWhen(sub.t)}` +
+    (nq && nq > AV_QEND ? `: Next Q puts it in the quarter after its Min ARR date (${md(mad)})` : "") : ""};
 }
+function avLeadPill(key, d, sub) { const c = avLeadCall(key, d, sub); return c ? avPill(c.vp, c.cat, c.why) : '<span class="muted">—</span>'; }
 // Aviv's rows: today's open deals that Shaka's or the region lead's forecast has in Commit, Best Case or Pipeline, plus the deals in
 // Shaka's last submission that aren't among them any more (closed since, or moved out of Q4). Each starts as Shaka submitted it:
 // his call, at the deal's ARR in his submission (a deal outside his submission, at today's Salesforce ARR).
@@ -2215,6 +2217,149 @@ function avRenderTable() {
     `<tbody>${rows.length ? rows.map(r => avRowHtml(r, sub)).join("") : `<tr><td colspan="11" class="muted">No deals match.</td></tr>`}</tbody><tfoot></tfoot>`;
   $("avTable").querySelector("tfoot").innerHTML = avFootHtml();
 }
+/* ---------- Excel export ---------- */
+// A small .xlsx writer: a workbook is a zip of XML files (stored here, uncompressed). Sheets are rows of cells; a cell is a string,
+// a number, null, or {v, s: style, f: formula}. Styles: 1 bold, 2 dollars, 3 bold dollars, 4 title, 5 note, 6 column header, 7 link.
+const XL_STYLES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">` +
+  `<numFmts count="1"><numFmt numFmtId="164" formatCode="&quot;$&quot;#,##0;-&quot;$&quot;#,##0"/></numFmts>` +
+  `<fonts count="5"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font>` +
+  `<font><b/><sz val="14"/><name val="Calibri"/></font><font><i/><sz val="10"/><color rgb="FF5B6676"/><name val="Calibri"/></font>` +
+  `<font><u/><sz val="11"/><color rgb="FF2E5BBA"/><name val="Calibri"/></font></fonts>` +
+  `<fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill>` +
+  `<fill><patternFill patternType="solid"><fgColor rgb="FFEEF1F5"/><bgColor indexed="64"/></patternFill></fill></fills>` +
+  `<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>` +
+  `<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="8">` +
+  `<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/>` +
+  `<xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>` +
+  `<xf numFmtId="164" fontId="1" fillId="0" borderId="0" xfId="0" applyNumberFormat="1" applyFont="1"/>` +
+  `<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/><xf numFmtId="0" fontId="3" fillId="0" borderId="0" xfId="0" applyFont="1"/>` +
+  `<xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/><xf numFmtId="0" fontId="4" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs>` +
+  `<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`;
+const XL_HEAD = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`;
+const xlCol = i => { let s = ""; for (i++; i; i = Math.floor((i - 1) / 26)) s = String.fromCharCode(65 + (i - 1) % 26) + s; return s; };
+const xlEsc = s => String(s).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFE\uFFFF]/g, "").replace(/_(x[0-9A-Fa-f]{4}_)/g, "_x005F_$1").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+function xlSheet({rows, widths = [], freeze = 0, filter = null}) {
+  const cell = (x, c, r) => {
+    if (x == null || x === "") return "";
+    const o = typeof x === "object" ? x : {v: x}, ref = xlCol(c) + (r + 1), s = o.s ? ` s="${o.s}"` : "";
+    if (o.f) return `<c r="${ref}"${s} t="str"><f>${xlEsc(o.f)}</f><v>${xlEsc(o.v == null ? "" : o.v)}</v></c>`;
+    if (typeof o.v === "number") return isFinite(o.v) ? `<c r="${ref}"${s}><v>${o.v}</v></c>` : "";
+    return `<c r="${ref}"${s} t="inlineStr"><is><t xml:space="preserve">${xlEsc(o.v)}</t></is></c>`;
+  };
+  const body = rows.map((row, r) => { const cs = (row || []).map((x, c) => cell(x, c, r)).join(""); return cs ? `<row r="${r + 1}">${cs}</row>` : ""; }).join("");
+  return XL_HEAD + `<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0">` +
+    (freeze ? `<pane ySplit="${freeze}" topLeftCell="A${freeze + 1}" activePane="bottomLeft" state="frozen"/>` : "") + `</sheetView></sheetViews>` +
+    (widths.length ? `<cols>${widths.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join("")}</cols>` : "") +
+    `<sheetData>${body}</sheetData>${filter ? `<autoFilter ref="${filter}"/>` : ""}</worksheet>`;
+}
+const CRC_T = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+const crc32 = b => { let c = 0xFFFFFFFF; for (let i = 0; i < b.length; i++) c = CRC_T[(c ^ b[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
+// a zip of [{name, data: Uint8Array}], each stored as is
+function zipStore(files) {
+  const enc = new TextEncoder(), parts = [], central = [], now = new Date();
+  const time = (now.getHours() << 11) | (now.getMinutes() << 5) | (now.getSeconds() >> 1), date = ((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate();
+  let off = 0;
+  for (const f of files) {
+    const name = enc.encode(f.name), crc = crc32(f.data), n = f.data.length, h = new DataView(new ArrayBuffer(30)), c = new DataView(new ArrayBuffer(46));
+    [[0, 0x04034b50, 4], [4, 20, 2], [6, 0x0800, 2], [8, 0, 2], [10, time, 2], [12, date, 2], [14, crc, 4], [18, n, 4], [22, n, 4], [26, name.length, 2], [28, 0, 2]]
+      .forEach(([o, v, w]) => w === 4 ? h.setUint32(o, v, true) : h.setUint16(o, v, true));
+    [[0, 0x02014b50, 4], [4, 20, 2], [6, 20, 2], [8, 0x0800, 2], [10, 0, 2], [12, time, 2], [14, date, 2], [16, crc, 4], [20, n, 4], [24, n, 4], [28, name.length, 2],
+      [30, 0, 2], [32, 0, 2], [34, 0, 2], [36, 0, 2], [38, 0, 4], [42, off, 4]].forEach(([o, v, w]) => w === 4 ? c.setUint32(o, v, true) : c.setUint16(o, v, true));
+    parts.push(new Uint8Array(h.buffer), name, f.data); central.push(new Uint8Array(c.buffer), name);
+    off += 30 + name.length + n;
+  }
+  const size = central.reduce((a, p) => a + p.length, 0), e = new DataView(new ArrayBuffer(22));
+  [[0, 0x06054b50, 4], [4, 0, 2], [6, 0, 2], [8, files.length, 2], [10, files.length, 2], [12, size, 4], [16, off, 4], [20, 0, 2]]
+    .forEach(([o, v, w]) => w === 4 ? e.setUint32(o, v, true) : e.setUint16(o, v, true));
+  const all = [...parts, ...central, new Uint8Array(e.buffer)], out = new Uint8Array(all.reduce((a, p) => a + p.length, 0));
+  let p = 0; for (const x of all) { out.set(x, p); p += x.length; }
+  return out;
+}
+// an .xlsx of [{name, rows, widths, freeze, filter}]
+function xlsxFile(sheets) {
+  const x = s => new TextEncoder().encode(s), q = s => `'${s.replace(/'/g, "''")}'`, abs = r => r.replace(/([A-Z]+)(\d+)/g, "$$$1$$$2");
+  const names = sheets.map((s, i) => s.filter ? `<definedName name="_xlnm._FilterDatabase" localSheetId="${i}" hidden="1">${xlEsc(q(s.name) + "!" + abs(s.filter))}</definedName>` : "").join("");
+  return zipStore([
+    {name: "[Content_Types].xml", data: x(XL_HEAD + `<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">` +
+      `<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>` +
+      `<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>` +
+      `<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>` +
+      sheets.map((s, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join("") + `</Types>`)},
+    {name: "_rels/.rels", data: x(XL_HEAD + `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">` +
+      `<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`)},
+    {name: "xl/workbook.xml", data: x(XL_HEAD + `<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>` +
+      sheets.map((s, i) => `<sheet name="${xlEsc(s.name)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join("") + `</sheets>${names ? `<definedNames>${names}</definedNames>` : ""}</workbook>`)},
+    {name: "xl/_rels/workbook.xml.rels", data: x(XL_HEAD + `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">` +
+      sheets.map((s, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join("") +
+      `<Relationship Id="rId${sheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`)},
+    {name: "xl/styles.xml", data: x(XL_STYLES)},
+    ...sheets.map((s, i) => ({name: `xl/worksheets/sheet${i + 1}.xml`, data: x(xlSheet(s))}))
+  ]);
+}
+// Aviv's tab as a workbook: Summary (the tiles and the comparison), Deals (the table, every deal) and Judgment (Shaka's judgment
+// lines, Aviv's added amounts, the region leads' judgments)
+const avExportReady = () => { const t = avTotals(); return !t.wait && t.rlReady && AV.docReady && !AV.readErr && avJReady(); };
+function avWorkbook() {
+  const sub = avSubmission("co"), t = avTotals();
+  if (!avExportReady()) return null;
+  const st = avState(), rows = avRows(st, sub).sort((a, b) => b.base - a.base);
+  const R = v => Math.round(Number(v) || 0), usd = v => ({v: R(v), s: 2}), usdB = v => ({v: R(v), s: 3}), hd = v => ({v, s: 6}), bold = v => ({v, s: 1});
+  const when = x => x && !x.wait ? fmtWhen(x.t) : "", lead = k => VIEWS.find(v => v.key === k);
+  const src = x => x && !x.wait ? (x.rebuilt ? "Rebuilt from Salesforce history at the submission" : "Razieli's saved snapshot (Snowflake)") : "";
+  // closed, Commit, Best Case, judgment / added, for Shaka, the region leads and Aviv
+  const sh = [t.closed, t.sh.Commit, t.sh["Best Case"], t.shJ].map(R), rlv = [t.rlWon, t.rl.Commit, t.rl["Best Case"], t.rlJ].map(R),
+    av = [t.closed, t.av.Commit, t.av["Best Case"], t.add].map(R), tot = a => a.reduce((x, y) => x + y, 0);
+  const cmp = (label, i) => [label, usd(sh[i]), usd(rlv[i]), usd(av[i]), usd(av[i] - sh[i])];
+  const summary = [[{v: "Aviv's forecast, Q4 2026", s: 4}],
+    [{v: `Exported ${fmtWhen(Date.now())}${AV.uid ? " by " + AV.uid : ""} from the forecast dashboard app. Shaka's and the region leads' figures are their last submissions; Aviv's starts as Shaka's, with his changes.`, s: 5}], [],
+    [hd(""), hd("Shaka"), hd("Region leads"), hd("Aviv"), hd("Aviv vs Shaka")],
+    cmp("Closed won and committed", 0), cmp("Commit", 1), cmp("Best Case", 2), cmp("Judgment / added by Aviv", 3),
+    [bold("Forecast"), usdB(tot(sh)), usdB(tot(rlv)), usdB(tot(av)), usdB(tot(av) - tot(sh))], [],
+    [hd("Last submission"), hd("Submitted"), hd("Source of the deals")],
+    [`${lead("co").leadFull} (VP, Company)`, when(sub), src(sub)],
+    ...AV_RL.map((k, i) => [`${lead(k).leadFull} (${lead(k).label})`, t.rls[i].wait === "none" ? "No Q4 2026 submission" : when(t.rls[i]), src(t.rls[i])]), [],
+    [hd("Deals"), hd("Count")], ["Changed by Aviv", t.changed], ["In Aviv's Commit", t.n.Commit], ["In Aviv's Best Case", t.n["Best Case"]],
+    ["Closed won and committed, as Shaka submitted", t.closedN], ["Amounts added by Aviv (lines)", t.nAdd]];
+  const counts = c => !c || !c.vp ? "" : AV_COUNTS(c.cat) ? c.cat : "Not counted";
+  const head = ["Deal", "Account", "Owner", "Type", "Region", "Stage today", "Shaka, as submitted", "Counted in Shaka's forecast as", "Region lead, as submitted",
+    "Counted in the region lead's forecast as", "Aviv's call", "ARR in Shaka's forecast", "ARR in Salesforce today", "Aviv's amount", "In Aviv's forecast", "Changed by Aviv", "Opportunity ID"];
+  const deals = rows.map(r => {
+    const d = r.d, rk = avRegionKey(d.region), sc = avLeadCall("co", d, sub), rc = rk ? avLeadCall(rk, d, avSubmission(rk)) : null, nm = String(d.name || d.id);
+    return [{v: nm, s: 7, f: `HYPERLINK("${SF_URL(d.id)}","${nm.slice(0, 240).replace(/"/g, '""')}")`}, d.account || "", d.owner || "", d.type || "", d.region || "", d.stage || "",
+      sc && sc.vp || "", counts(sc), rc && rc.vp || "", counts(rc), r.cat, r.s ? usd(r.s.val) : "", d.extra && !R(d.arr) ? "" : usd(d.arr),
+      r.c && r.c.amt != null ? usd(r.c.amt) : "", AV_COUNTS(r.cat) ? usd(r.amt) : "not counted", r.c ? "Yes" : "", d.id];
+  });
+  const total = [bold(`${rows.length} deals`), "", "", "", "", "", "", "", "", "", "", usdB(sum(rows, r => r.s ? R(r.s.val) : 0)), usdB(sum(rows, r => R(r.d.arr))), "",
+    usdB(sum(rows.filter(r => AV_COUNTS(r.cat)), r => R(r.amt)))];
+  const lines = (key, x) => { const s = x && !x.wait ? rzSubAt(key, AV_PERIOD, x.t) : null; return s && Math.round(s[2] / 1000) ? noteItems(s).map(it => [it.label, usd(it.amount)]) : []; };
+  const judgment = [[{v: "Judgment, Q4 2026", s: 4}], [],
+    [hd(`Shaka's judgment, submitted ${when(sub)}`), hd("Amount")], ...lines("co", sub), [bold("Total"), usdB(t.shJ)], [],
+    [hd(Array.isArray((AV.doc || {}).adds) ? "Added by Aviv" : "Added by Aviv (following Shaka's judgment lines)"), hd("Amount"), hd("Note")],
+    ...st.adds.map(a => [a.name || "", usd(a.amt), a.note || ""]), [bold("Total"), usdB(t.add)], [],
+    ...AV_RL.flatMap((k, i) => { const x = t.rls[i];
+      return x.wait ? [[hd(`${lead(k).leadFull}'s judgment`), hd(x.wait === "none" ? "No Q4 2026 submission" : "")], []]
+        : [[hd(`${lead(k).leadFull}'s judgment, submitted ${when(x)}`), hd("Amount")], ...lines(k, x), [bold("Total"), usdB(x.j)], []]; })];
+  return xlsxFile([
+    {name: "Summary", rows: summary, widths: [48, 22, 46, 18, 18]},
+    {name: "Deals", rows: [head.map(hd), ...deals, [], total], widths: [44, 28, 18, 12, 14, 26, 20, 18, 20, 18, 12, 16, 16, 14, 16, 10, 20], freeze: 1,
+      filter: `A1:${xlCol(head.length - 1)}${rows.length + 1}`},
+    {name: "Judgment", rows: judgment, widths: [70, 16, 70]}
+  ]);
+}
+async function avExport() {
+  const data = avWorkbook();
+  if (!data) return;
+  AV.exportMsg = "";
+  try {
+    await S.dl.save({filename: `aviv-forecast-Q4-2026-${new Date().toLocaleDateString("en-CA")}.xlsx`, data});
+  } catch (e) {
+    const code = e && e.code;
+    if (code === "declined") return;
+    if (["unavailable", "not_granted", "capability_disabled", "capability_removed"].includes(code)) { S.dl = null; avRender(); return; }
+    AV.exportMsg = code === "rate_limited" ? " A save prompt is already open." : " Couldn't export right now.";
+  }
+  const msg = $("avExportMsg"); if (msg) msg.textContent = AV.exportMsg;
+}
 function avRender() {
   if (S.tab !== "aviv") return;
   // Aviv's inputs are saved in the app only, so this version sends people there instead of keeping its own copy
@@ -2231,8 +2376,10 @@ function avRender() {
   $("avTools").innerHTML = `<span id="avSave"></span>` +
     // Reset puts back Shaka's judgment lines, so it waits for Razieli (without it there would be none to put back)
     (AV.deals && !locked && !RAZIELI.loading && Object.keys(RAZIELI.leads || {}).length > 0 ? `<button type="button" class="btn" id="avReset">${AV.resetArm ? "Click again to reset everything to Shaka's" : "Reset to Shaka's"}</button>` : "") +
-    (S.mcp && S.mode !== "shared" ? `<button type="button" class="btn" id="avRefresh"${AV.loading ? " disabled" : ""}>${AV.loading ? "Loading…" : "Refresh deals"}</button>` : "");
+    (S.mcp && S.mode !== "shared" ? `<button type="button" class="btn" id="avRefresh"${AV.loading ? " disabled" : ""}>${AV.loading ? "Loading…" : "Refresh deals"}</button>` : "") +
+    (AV.deals && S.dl ? `<button type="button" class="btn" id="avExport"${avExportReady() ? "" : " disabled"} title="An Excel file with three tabs: Summary, Deals and Judgment. Google Sheets opens it too (File, Import)">Export to Excel</button><span class="muted" id="avExportMsg">${esc(AV.exportMsg || "")}</span>` : "");
   avSaveNote();
+  const ex = $("avExport"); if (ex) ex.addEventListener("click", () => avExport());
   // refreshing also re-reads the data Shaka's and the region leads' submissions are worked out from (and Razieli)
   const rf = $("avRefresh"); if (rf) rf.addEventListener("click", () => { avLoad(true); if (S.loaded && S.loaded.period === AV_PERIOD) load(true); });
   const rs = $("avReset"); if (rs) rs.addEventListener("click", () => {
