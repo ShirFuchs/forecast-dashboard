@@ -332,7 +332,9 @@ async function snowToken(form, app) {
     if (j.error !== "invalid_client" || enc !== encodeURIComponent) break;
   }
   if (r.ok && j.access_token) return j;
-  if (j.error === "invalid_grant") throw httpError(401, "needs_reauth", "Your Snowflake sign-in has expired. Connect Snowflake again.");
+  // a refresh the client is refused for is a sign-in made with earlier app credentials (they were replaced): sign in again
+  if (j.error === "invalid_grant" || (j.error === "invalid_client" && form.grant_type === "refresh_token"))
+    throw httpError(401, "needs_reauth", "Your Snowflake sign-in has expired. Connect Snowflake again.");
   if (r.status >= 500 || r.status === 429) throw unavailable("Snowflake's sign-in");
   throw httpError(502, "tool_error", `Snowflake sign-in failed: ${j.error || r.status} ${j.message || j.error_description || ""}`.trim());
 }
