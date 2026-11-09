@@ -32,9 +32,11 @@ function Save($name, $value) {
 function Clip { try { [string](Get-Clipboard -Raw) -replace '\s+', '' } catch { "" } }
 Write-Host "`nCopy the whole line the data team sent, the {...} with OAUTH_CLIENT_ID and OAUTH_CLIENT_SECRET in it, then press Enter here."
 [void](Read-Host)
-$j = $null; try { $j = (Clip).Trim() | ConvertFrom-Json } catch {}
-if ($j -and $j.OAUTH_CLIENT_ID -and $j.OAUTH_CLIENT_SECRET) {
-  $id = ([string]$j.OAUTH_CLIENT_ID).Trim(); $sec = ([string]$j.OAUTH_CLIENT_SECRET).Trim()
+# chat apps turn the quotes curly, so any quote mark counts; OAUTH_CLIENT_SECRET is the first secret, not OAUTH_CLIENT_SECRET_2
+$raw = (Clip) -replace '[“”„‟″‶«»]', '"'
+$mi = [regex]::Match($raw, '"OAUTH_CLIENT_ID":"([^"]+)"'); $ms = [regex]::Match($raw, '"OAUTH_CLIENT_SECRET":"([^"]+)"')
+if ($mi.Success -and $ms.Success) {
+  $id = $mi.Groups[1].Value; $sec = $ms.Groups[1].Value
 } else {
   Write-Host "That isn't the {...} line. Copy just the client ID (OAUTH_CLIENT_ID), then press Enter."; [void](Read-Host); $id = (Clip).Trim()
   Write-Host "Now copy just the first client secret (OAUTH_CLIENT_SECRET), then press Enter."; [void](Read-Host); $sec = (Clip).Trim()
