@@ -28,9 +28,16 @@ function Save($name, $value) {
   } finally { Remove-Item $tmp -Force -ErrorAction SilentlyContinue }
 }
 
-$id = (Plain (Read-Host "Snowflake OAUTH_CLIENT_ID" -AsSecureString)).Trim()
-$sec = (Plain (Read-Host "Snowflake OAUTH_CLIENT_SECRET (the first one)" -AsSecureString)).Trim()
+# The client ID isn't secret (it travels in every sign-in link), so it shows as you paste; the secret stays hidden. Snowflake's
+# are 28 and 44 characters: a paste that lost characters is caught here, before it's saved.
+$id = (Read-Host "Snowflake OAUTH_CLIENT_ID").Trim()
+$sec = (Plain (Read-Host "Snowflake OAUTH_CLIENT_SECRET (the first one; hidden as you paste)" -AsSecureString)).Trim()
 if (-not $id -or -not $sec) { throw "Both values are needed; nothing was saved." }
+Write-Host "`n  Client ID: $id  ($($id.Length) characters)`n  Secret:    $($sec.Length) characters"
+if ($id.Length -ne 28 -or $sec.Length -ne 44) {
+  Write-Host "  Snowflake's client IDs are 28 characters and its secrets 44: check you copied each one whole, from the first character." -ForegroundColor Yellow
+}
+if ((Read-Host "`nSave these? (y/n)") -notmatch '^\s*y') { Write-Host "Nothing was saved."; exit }
 Save "snowflake-oauth-client-id" $id
 Save "snowflake-oauth-client-secret" $sec
 Write-Host "`nSaved. Within 10 minutes the app shows a Connect Snowflake button: reload it, click it and sign in to Snowflake."
