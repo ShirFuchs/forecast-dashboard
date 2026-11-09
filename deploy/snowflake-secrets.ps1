@@ -25,32 +25,31 @@ function Save($name, $value) {
   } finally { Remove-Item $tmp -Force -ErrorAction SilentlyContinue }
 }
 
-# The values come from the clipboard, not typed or pasted into this window (pasting into a prompt can drop characters):
-# ideally the whole {...} line the data team sent, else each value in turn. The clipboard is cleared afterwards.
-# (spaces and line breaks are dropped: a narrow chat window can wrap the line mid-value when it's copied, and neither the
-# keys nor the values contain any)
+# The values come from the clipboard, never typed or pasted into this window (pasting into a prompt drops characters), and
+# only as the whole {...} line the data team sent: the script asks again until the clipboard holds it, and saves nothing
+# that doesn't look exactly like Snowflake's client ID (28 characters) and secret (44). The clipboard is cleared afterwards.
+# Spaces and line breaks are dropped (a narrow chat window can wrap the line mid-value when it's copied; neither the keys nor
+# the values contain any), and chat apps' curly quotes count as quotes. OAUTH_CLIENT_SECRET is the first secret, not _2.
 function Clip { try { [string](Get-Clipboard -Raw) -replace '\s+', '' } catch { "" } }
-Write-Host "`nCopy the whole line the data team sent, the {...} with OAUTH_CLIENT_ID and OAUTH_CLIENT_SECRET in it, then press Enter here."
-[void](Read-Host)
-# chat apps turn the quotes curly, so any quote mark counts; OAUTH_CLIENT_SECRET is the first secret, not OAUTH_CLIENT_SECRET_2
 $quotes = '[' + (-join [char[]](0x201C, 0x201D, 0x201E, 0x201F, 0x2033, 0x2036, 0xAB, 0xBB)) + ']'
-$raw = (Clip) -replace $quotes, '"'
-$mi = [regex]::Match($raw, '"OAUTH_CLIENT_ID":"([^"]+)"'); $ms = [regex]::Match($raw, '"OAUTH_CLIENT_SECRET":"([^"]+)"')
-if ($mi.Success -and $ms.Success) {
+$id = $null; $sec = $null
+while ($true) {
+  $answer = Read-Host "`nCopy the whole line the data team sent (the {...} with OAUTH_CLIENT_ID and OAUTH_CLIENT_SECRET), then press Enter here (q to quit)"
+  if ($answer -match '^\s*q') { Write-Host "Nothing was saved."; exit }
+  $raw = (Clip) -replace $quotes, '"'
+  $mi = [regex]::Match($raw, '"OAUTH_CLIENT_ID":"([A-Za-z0-9+/=]+)"'); $ms = [regex]::Match($raw, '"OAUTH_CLIENT_SECRET":"([A-Za-z0-9+/=]+)"')
+  if (-not ($mi.Success -and $ms.Success)) { Write-Host "  The clipboard doesn't hold that line yet. Copy all of it, from { to }, and press Enter again." -ForegroundColor Yellow; continue }
   $id = $mi.Groups[1].Value; $sec = $ms.Groups[1].Value
-} else {
-  Write-Host "That isn't the {...} line. Copy just the client ID (OAUTH_CLIENT_ID), then press Enter."; [void](Read-Host); $id = (Clip).Trim()
-  Write-Host "Now copy just the first client secret (OAUTH_CLIENT_SECRET), then press Enter."; [void](Read-Host); $sec = (Clip).Trim()
+  if ($id -notmatch '^[A-Za-z0-9+/]{27}=$' -or $sec -notmatch '^[A-Za-z0-9+/]{43}=$') {
+    Write-Host "  That line's values aren't the usual 28 and 44 characters ($($id.Length) and $($sec.Length)): copy it again, all of it, and press Enter." -ForegroundColor Yellow
+    continue
+  }
+  break
 }
 try { Set-Clipboard -Value " " } catch {}
-if (-not $id -or -not $sec) { throw "Both values are needed; nothing was saved." }
 # the client ID isn't secret (it travels in every sign-in link), so it's shown; the secret only by its length
-# (Snowflake's are 28 and 44 characters, so a value copied short is caught before it's saved)
-Write-Host "`n  Client ID: $id  ($($id.Length) characters)`n  Secret:    $($sec.Length) characters"
-if ($id.Length -ne 28 -or $sec.Length -ne 44) {
-  Write-Host "  Snowflake's client IDs are 28 characters and its secrets 44: check you copied each one whole, from the first character." -ForegroundColor Yellow
-}
+Write-Host "`n  Client ID: $id  (28 characters)`n  Secret:    44 characters"
 if ((Read-Host "`nSave these? (y/n)") -notmatch '^\s*y') { Write-Host "Nothing was saved."; exit }
 Save "snowflake-oauth-client-id" $id
 Save "snowflake-oauth-client-secret" $sec
-Write-Host "`nSaved. Within 10 minutes the app shows a Connect Snowflake button: reload it, click it and sign in to Snowflake."
+Write-Host "`nSaved. Within 10 minutes the app uses them: reload it, click Disconnect at the top if it shows you signed in, then Connect Snowflake."
