@@ -320,11 +320,17 @@ async function snowApp() {
   return id && sec ? {id, sec} : null;
 }
 async function snowToken(form, app) {
-  const r = await fetch(`${SNOW.url}/oauth/token-request`, {method: "POST",
-    headers: {"Content-Type": "application/x-www-form-urlencoded;charset=UTF-8", Accept: "application/json",
-      Authorization: "Basic " + Buffer.from(`${encodeURIComponent(app.id)}:${encodeURIComponent(app.sec)}`).toString("base64")},
-    body: new URLSearchParams(form)}).catch(() => { throw unavailable("Snowflake's sign-in"); });
-  const j = await r.json().catch(() => ({}));
+  // The client id and secret go in Basic auth form-encoded, as OAuth specifies; Snowflake's carry + / =, so when Snowflake
+  // refuses the client that way, the plain pair is tried once (a refused client doesn't use up the sign-in code)
+  let r, j;
+  for (const enc of [encodeURIComponent, s => s]) {
+    r = await fetch(`${SNOW.url}/oauth/token-request`, {method: "POST",
+      headers: {"Content-Type": "application/x-www-form-urlencoded;charset=UTF-8", Accept: "application/json",
+        Authorization: "Basic " + Buffer.from(`${enc(app.id)}:${enc(app.sec)}`).toString("base64")},
+      body: new URLSearchParams(form)}).catch(() => { throw unavailable("Snowflake's sign-in"); });
+    j = await r.json().catch(() => ({}));
+    if (j.error !== "invalid_client" || enc !== encodeURIComponent) break;
+  }
   if (r.ok && j.access_token) return j;
   if (j.error === "invalid_grant") throw httpError(401, "needs_reauth", "Your Snowflake sign-in has expired. Connect Snowflake again.");
   if (r.status >= 500 || r.status === 429) throw unavailable("Snowflake's sign-in");
