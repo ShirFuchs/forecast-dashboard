@@ -27,7 +27,9 @@ function Save($name, $value) {
 
 # The values come from the clipboard, not typed or pasted into this window (pasting into a prompt can drop characters):
 # ideally the whole {...} line the data team sent, else each value in turn. The clipboard is cleared afterwards.
-function Clip { try { [string](Get-Clipboard -Raw) } catch { "" } }
+# (spaces and line breaks are dropped: a narrow chat window can wrap the line mid-value when it's copied, and neither the
+# keys nor the values contain any)
+function Clip { try { [string](Get-Clipboard -Raw) -replace '\s+', '' } catch { "" } }
 Write-Host "`nCopy the whole line the data team sent, the {...} with OAUTH_CLIENT_ID and OAUTH_CLIENT_SECRET in it, then press Enter here."
 [void](Read-Host)
 $j = $null; try { $j = (Clip).Trim() | ConvertFrom-Json } catch {}
