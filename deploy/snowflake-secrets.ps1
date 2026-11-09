@@ -33,7 +33,8 @@ function Clip { try { [string](Get-Clipboard -Raw) -replace '\s+', '' } catch { 
 Write-Host "`nCopy the whole line the data team sent, the {...} with OAUTH_CLIENT_ID and OAUTH_CLIENT_SECRET in it, then press Enter here."
 [void](Read-Host)
 # chat apps turn the quotes curly, so any quote mark counts; OAUTH_CLIENT_SECRET is the first secret, not OAUTH_CLIENT_SECRET_2
-$raw = (Clip) -replace '[“”„‟″‶«»]', '"'
+$quotes = '[' + (-join [char[]](0x201C, 0x201D, 0x201E, 0x201F, 0x2033, 0x2036, 0xAB, 0xBB)) + ']'
+$raw = (Clip) -replace $quotes, '"'
 $mi = [regex]::Match($raw, '"OAUTH_CLIENT_ID":"([^"]+)"'); $ms = [regex]::Match($raw, '"OAUTH_CLIENT_SECRET":"([^"]+)"')
 if ($mi.Success -and $ms.Success) {
   $id = $mi.Groups[1].Value; $sec = $ms.Groups[1].Value
