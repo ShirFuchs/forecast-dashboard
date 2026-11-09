@@ -49,7 +49,7 @@ CREATE SECURITY INTEGRATION WSC_FORECAST_APP_OAUTH
 SELECT SYSTEM$SHOW_OAUTH_CLIENT_SECRETS('WSC_FORECAST_APP_OAUTH');
 ```
 
-Then run `deploysnowflake-secrets.ps1` and paste the client id and secret when asked: it saves them as new versions of
+Then run `deploy\snowflake-secrets.ps1` and paste the client id and secret when asked: it saves them as new versions of
 the `snowflake-oauth-client-id` and `snowflake-oauth-client-secret` secrets (no redeploy needed). Viewers sign in with the role `WSC_BA_VIEWER` and the
 warehouse `WSC_MCP_WH` (env `SNOWFLAKE_ROLE`, `SNOWFLAKE_WAREHOUSE`).
 
