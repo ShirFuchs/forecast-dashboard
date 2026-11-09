@@ -159,7 +159,8 @@
   window.FD_APP = {
     razieli: refresh => api("/api/razieli", {refresh: !!refresh}),
     session,
-    disconnectSnowflake: () => api("/api/snowflake/disconnect", {})
+    disconnectSnowflake: () => api("/api/snowflake/disconnect", {}),
+    shareSnowflake: on => api("/api/snowflake/share", {on: !!on})
   };
   window.claude = {use: async name => ({mcp, downloads, db, user})[name] || null};
 })();

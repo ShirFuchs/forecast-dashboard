@@ -1059,7 +1059,7 @@ const fmtWhen = t => new Date(t).toLocaleString("en-GB", {day: "numeric", month:
 // leads' in separate tables). The view's lead's submissions are read from there; a submission the table doesn't have falls
 // back to the rebuild from Salesforce history.
 const SNOW_SERVER = "Snowflake";
-const SNAP = {lists: {}, data: {}, busy: new Set(), err: null, stubs: new Map(), ver: 0};
+const SNAP = {lists: {}, data: {}, failed: new Set(), busy: new Set(), err: null, stubs: new Map(), ver: 0};
 async function snow(sql) {
   let res;
   try { res = await S.mcp.callTool(SNOW_SERVER, "sql_exec", {sql}, {cache: CACHE}); }
@@ -1080,7 +1080,9 @@ function snapFetch(key, sql, store, shape) {
   if (store[key] || SNAP.busy.has(key) || !S.mcp || S.mode === "shared") return;
   SNAP.busy.add(key);
   // a viewer without Snowflake falls back to the snapshots in the shared copy, when there is one
-  snow(sql).then(rows => { store[key] = shape(rows); SNAP.ver++; }).catch(e => { SNAP.err = e; store[key] = shape([]); SNAP.ver++; useSharedSnaps(); })
+  // (a submission whose rows couldn't be read is marked failed, so it's rebuilt instead of shown as an empty snapshot)
+  snow(sql).then(rows => { store[key] = shape(rows); SNAP.ver++; })
+    .catch(e => { SNAP.err = e; if (store === SNAP.data) SNAP.failed.add(key); else store[key] = shape([]); SNAP.ver++; useSharedSnaps(); })
     .finally(() => { SNAP.busy.delete(key); if (S.loaded && !S.loading) { if (needsReload()) load(false); else render(); } });
 }
 // The lead's submissions for the period's quarter: [{id, t, bad}]. A few saved snapshots repeat every row many times over
@@ -1098,10 +1100,11 @@ function requestSnapList(period) {
   snapFetch(listKey(period), listSql(V(), period), SNAP.lists, shapeList);
 }
 // One submission's deals at the quarter end, in the view's regions: Map(opportunity id -> {id, name, st, vp, region, owner, vals});
-// vp holds the lead's own forecast column (VP or region lead)
+// vp holds the lead's own forecast column (VP or region lead). null while it loads, false when it couldn't be read (rebuild it)
 function snapData(snap, period) {
   const key = dataKey(V(), snap.id, period);
   if (SNAP.data[key]) return SNAP.data[key];
+  if (SNAP.failed.has(key)) return false;
   snapFetch(key, dataSql(V(), snap.id, period), SNAP.data, shapeData);
   return null;
 }
@@ -1143,7 +1146,7 @@ function renderForecastTab(period, d1) {
   const T = F && F.t;
   btn.innerHTML = `Forecast weekly snapshot${T ? `<span class="when">${esc(fmtWhen(T).replace(/ \d{4},/, ","))}</span>` : ""}`;
   const data = F && F.snap ? snapData(F.snap, period) : null;
-  if (!T || (F.snap && !data)) {
+  if (!T || (F.snap && data === null)) {
     $("snapFc").innerHTML = `<h2>${V().lead}'s forecast</h2><p class="note">${F && F.snap ? `Loading ${V().lead}'s saved submission from Snowflake…` : S.subsState === "loading" || !SNAP.lists[listKey(period)] ? `Looking up ${V().leadFull}'s forecast submissions…` : `No ${esc(q)} forecast submission found on or before ${dmy(d1)}.`}</p>`;
     ["fcProdTable", "fcAllTable"].forEach(id => $(id).innerHTML = ""); $("fcAllSummary").textContent = "All deals in the forecast";
     return;
@@ -1152,7 +1155,7 @@ function renderForecastTab(period, d1) {
   renderSnapBlock("snapFc", "fc", {
     title: `${V().lead}'s forecast, ${fmtWhen(T)}`, fileTag: `forecast-${V().key}-${period.id}-${iso(new Date(T))}`,
     note: `${V().leadFull}'s last ${q} submission on or before ${dmy(d1)} (the compare end date). Won and committed deals plus open Commit and Best Case (Next Q included), ` +
-      (data ? "exactly as Razieli saved them at submission (Snowflake submission snapshot)." : `with each deal's status and ARR rebuilt from Salesforce history, because ${F.bad ? "Razieli's saved snapshot for this submission in Snowflake is corrupted (its ARR is many times too high)" : S.app && !(S.session && S.session.snowflake && S.session.snowflake.connected) ? "Snowflake isn't connected in this app yet" : SNAP.err ? "Snowflake couldn't be read" : "Snowflake has no saved snapshot for this submission"}.`) +
+      (data ? "exactly as Razieli saved them at submission (Snowflake submission snapshot)." : `with each deal's status and ARR rebuilt from Salesforce history, because ${F.bad ? "Razieli's saved snapshot for this submission in Snowflake is corrupted (its ARR is many times too high)" : S.app && !(S.session && S.session.snowflake && (S.session.snowflake.connected || (S.session.snowflake.shared && S.session.snowflake.shared.ok))) ? "Snowflake isn't connected in this app yet" : SNAP.err ? "Snowflake couldn't be read" : "Snowflake has no saved snapshot for this submission"}.`) +
       (S.sel && judgmentFor(period.id, T) ? ` ${V().lead}'s judgment is hidden while a product filter is on, since it has no product split.` : ""),
     items, jn, onLabel: "in this forecast"
   });
@@ -1349,9 +1352,13 @@ function bridgeContext(period, d0, d1) {
   const short = d => dmy(d).slice(0, -5);
   if (S.tab !== "fc") return {mode: "pipe", ok: true, T0: Date.parse(d0 + "T00:00:00Z"), T1: endMoment(d1), lab0: `${short(d0)} pipeline`, lab1: `${short(d1)} pipeline`,
     at0: `on ${dmy(d0)}`, at1: `on ${dmy(d1)}`, title: `Pipeline from ${dmy(d0)} to ${dmy(d1)}`, what: "Pipeline (won plus open Commit and Best Case)"};
-  const G0 = forecastAt(period, endMoment(d0)), G1 = forecastAt(period, endMoment(d1)), q = period.short.replace(" YTD", "");
-  const D0 = G0 && G0.snap ? snapData(G0.snap, period) : null, D1 = G1 && G1.snap ? snapData(G1.snap, period) : null;
-  if ((G0 && G0.snap && !D0) || (G1 && G1.snap && !D1)) return {mode: "fc", ok: false, title: "Forecast movement", missing: `Loading ${V().lead}'s saved submissions from Snowflake…`};
+  let G0 = forecastAt(period, endMoment(d0)), G1 = forecastAt(period, endMoment(d1));
+  const q = period.short.replace(" YTD", "");
+  let D0 = G0 && G0.snap ? snapData(G0.snap, period) : null, D1 = G1 && G1.snap ? snapData(G1.snap, period) : null;
+  if ((G0 && G0.snap && D0 === null) || (G1 && G1.snap && D1 === null)) return {mode: "fc", ok: false, title: "Forecast movement", missing: `Loading ${V().lead}'s saved submissions from Snowflake…`};
+  // a saved submission that couldn't be read is rebuilt from Salesforce history
+  if (D0 === false) { G0 = {...G0, snap: null}; D0 = null; }
+  if (D1 === false) { G1 = {...G1, snap: null}; D1 = null; }
   const F0 = G0 && G0.t, F1 = G1 && G1.t;
   const day = F => iso(new Date(F)), J = !S.sel && F0 && F1 ? judgmentFor(period.id, F1, F0) : null;
   const when = F => fmtWhen(F).replace(/ \d{4},/, ",");
@@ -1947,8 +1954,8 @@ function avSubmission(key) {
     requestSnapList(period);
     const F = forecastAt(period, null);
     if (!F) return {wait: S.subsState === "loading" ? "loading" : "none"};
-    const data = F.snap ? snapData(F.snap, period) : null;
-    if (F.snap && !data) return {wait: "snowflake"};
+    const data = F.snap ? snapData(F.snap, period) || null : null;
+    if (F.snap && snapData(F.snap, period) === null) return {wait: "snowflake"};
     // a rebuild needs history back to the submission; the load reaches back that far (loadFrom), so wait for it rather than guess
     if (!data && iso(new Date(F.t)) < S.loaded.d0 && needsReload()) { setTimeout(() => { if (!S.loading && needsReload()) load(false); }, 0); return {wait: "loading"}; }
     const items = data ? snapItemsFrom(data) : snapItems(period, F.t), J = judgmentFor(period.id, F.t);
@@ -2478,15 +2485,56 @@ async function loadAppSession() {
   S.sfMsg = h && h !== "connected" ? h : "";
   renderAppBar();
 }
+// The Snowflake line. The dashboard owner can share their Snowflake sign-in so everyone sees the saved submissions without
+// connecting; viewers who haven't connected are then told where the submissions come from instead of being asked to connect,
+// and the owner always sees their share's state with what renews it (connecting again) and Stop sharing.
 function renderAppBar() {
-  const s = S.session && S.session.snowflake;
-  $("appBar").innerHTML = (S.rzErr ? `<div class="banner">${esc(S.rzErr)}</div>` : "") +
-    (S.sfMsg ? `<div class="banner">The Snowflake sign-in didn't complete: ${esc(S.sfMsg)}</div>` : "") + (!s ? ""
-    : !s.configured ? `<div class="banner info">Snowflake isn't connected for this app yet: the data team still has to set up the Snowflake sign-in. Once they do, a Connect Snowflake button appears here and each forecast shows exactly as it was submitted (Razieli's saved snapshots). Until then each forecast is rebuilt from Salesforce history, which can't see bookings deleted after a submission.</div>`
-    : !s.connected ? `<div class="banner info">Connect Snowflake to see each forecast exactly as it was submitted (Razieli's saved snapshots, read with your own Snowflake access). Until then each forecast is rebuilt from Salesforce history. <a class="btn primary" href="/oauth/snowflake/start" style="display:inline-block;margin-left:8px;text-decoration:none">Connect Snowflake</a></div>`
-    : `<p class="muted" style="font-size:13px;margin:0 0 12px">Snowflake: signed in${s.user ? ` as ${esc(String(s.user).toLowerCase())}` : ""}. <button type="button" class="btn" id="sfOut">Disconnect</button></p>`);
+  const s = S.session && S.session.snowflake, sh = s && s.shared, shOk = !!(sh && sh.ok), mine = !!(sh && sh.by === (S.session || {}).email);
+  const day = t => new Date(t).toLocaleDateString("en-GB", {day: "numeric", month: "short", year: "numeric"});
+  const line = h => `<p class="muted" style="font-size:13px;margin:0 0 12px">${h}</p>`;
+  const connect = label => `<a class="btn primary" href="/oauth/snowflake/start" style="display:inline-block;margin-left:8px;text-decoration:none">${label}</a>`;
+  const stop = `<button type="button" class="btn" id="sfUnshare" style="margin-left:8px">Stop sharing</button>`;
+  const signedIn = () => line(`Snowflake: signed in${s.user ? ` as ${esc(String(s.user).toLowerCase())}` : ""}. <button type="button" class="btn" id="sfOut">Disconnect</button>`);
+  let html = (S.rzErr ? `<div class="banner">${esc(S.rzErr)}</div>` : "") + (S.sfMsg ? `<div class="banner">The Snowflake sign-in didn't complete: ${esc(S.sfMsg)}</div>` : "") +
+    (S.shareMsg ? `<div class="banner">Sharing the Snowflake sign-in didn't work: ${esc(S.shareMsg)}</div>` : "");
+  if (!s) {}
+  else if (!s.configured) html += `<div class="banner info">Snowflake isn't connected for this app yet: the data team still has to set up the Snowflake sign-in. Once they do, a Connect Snowflake button appears here and each forecast shows exactly as it was submitted (Razieli's saved snapshots). Until then each forecast is rebuilt from Salesforce history, which can't see bookings deleted after a submission.</div>`;
+  else if (mine && !s.canShare) {
+    // taken off the list of people who may share: their share no longer counts; all that's left is to remove it
+    if (s.connected) html += signedIn();
+    html += `<div class="banner info">You can no longer share your Snowflake sign-in with everyone, so everyone who hasn't connected Snowflake sees forecasts rebuilt from Salesforce.${stop}</div>`;
+  }
+  else if (mine) {
+    // the owner, about the sign-in they share: connecting again renews it (the share follows on its own)
+    if (s.connected) html += signedIn();
+    const renew = s.connected ? "click Disconnect, then Connect Snowflake" : "connect Snowflake";
+    html += shOk
+      ? line(`Shared with everyone until ${esc(day(sh.until))}: people who haven't connected Snowflake see the exact submissions through your sign-in. ` +
+          (sh.until - Date.now() < 7 * DAY ? `<b>That's soon:</b> ${renew} to renew it for another 90 days.` : `To renew it later, ${renew}.`) +
+          (s.connected ? "" : connect("Connect Snowflake")) + stop)
+      : `<div class="banner info">The Snowflake sign-in you shared with everyone has stopped working (it expired, or the app's Snowflake credentials changed), so everyone else sees forecasts rebuilt from Salesforce. ` +
+        `To renew it, ${renew}: sharing resumes on its own.${s.connected ? "" : connect("Connect Snowflake")}${stop}</div>`;
+  }
+  else if (!s.connected) html += shOk
+    ? line(`Forecasts show exactly as they were submitted: Razieli's saved snapshots from Snowflake, shared by ${esc(sh.by)}.`)
+    : `<div class="banner info">Connect Snowflake to see each forecast exactly as it was submitted (Razieli's saved snapshots, read with your own Snowflake access). Until then each forecast is rebuilt from Salesforce history.${connect("Connect Snowflake")}</div>`;
+  else {
+    html += signedIn();
+    if (s.canShare) html += `<div class="banner info">${shOk ? `Everyone sees the exact submissions through ${esc(sh.by)}'s Snowflake sign-in. ` : "Everyone who hasn't connected Snowflake sees forecasts rebuilt from Salesforce history. "}` +
+      `Share your Snowflake sign-in so everyone sees each forecast exactly as it was submitted, without connecting. The app uses it only for the dashboard's two queries on Razieli's saved submissions, until ${esc(day(s.until))}.` +
+      `<button type="button" class="btn primary" id="sfShare" style="margin-left:8px">Share with everyone</button></div>`;
+  }
+  $("appBar").innerHTML = html;
   const b = $("sfOut");
   if (b) b.addEventListener("click", async () => { try { await window.FD_APP.disconnectSnowflake(); } catch (e) {} location.reload(); });
+  for (const [id, on] of [["sfShare", true], ["sfUnshare", false]]) {
+    const x = $(id);
+    if (x) x.addEventListener("click", async () => {
+      x.disabled = true;
+      try { await window.FD_APP.shareSnowflake(on); location.reload(); }
+      catch (e) { x.disabled = false; S.shareMsg = (e && e.message) || "Couldn't change the sharing."; renderAppBar(); }
+    });
+  }
 }
 
 /* ---------- init ---------- */

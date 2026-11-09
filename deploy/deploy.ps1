@@ -11,6 +11,9 @@ $sa = "forecast-dashboard@$p.iam.gserviceaccount.com"
 $iapAgent = "service-1000251352147@gcp-sa-iap.iam.gserviceaccount.com"
 # who may change Aviv's forecast inputs in the app (everyone else at wsc-sports.com can view them); "*" lets anyone at WSC edit
 $avivEditors = @("shir.fuchs@wsc-sports.com", "aviv@wsc-sports.com")
+# who may share their Snowflake sign-in with everyone (so viewers see the exact saved submissions without connecting); taking
+# someone off ends their share. To let no one share, make it @() and redeploy: deleting the line leaves the old setting in place
+$snowflakeSharers = @("shir.fuchs@wsc-sports.com")
 function Run { & $g @args; if ($LASTEXITCODE) { throw "failed: gcloud $($args -join ' ')" } }
 
 Set-Location (Split-Path $PSScriptRoot -Parent)
@@ -33,7 +36,7 @@ $sfVars = "SF_CLIENT_ID=$($sfEnv.SF_CLIENT_ID),SF_USERNAME=$($sfEnv.SF_USERNAME)
 # 1. build from source (Dockerfile; .gcloudignore keeps everything but the app out of the upload) and deploy
 Run run deploy $svc --source . --project $p --region $r --service-account $sa `
   --no-allow-unauthenticated --ingress all --memory 1Gi --cpu 1 --timeout 300 --max-instances 4 `
-  --update-env-vars "$sfVars,IAP_AUDIENCE=/projects/1000251352147/locations/$r/services/$svc,AVIV_EDITORS=$($avivEditors -join ';')"
+  --update-env-vars "$sfVars,IAP_AUDIENCE=/projects/1000251352147/locations/$r/services/$svc,AVIV_EDITORS=$($avivEditors -join ';'),SNOWFLAKE_SHARERS=$($snowflakeSharers -join ';')"
 
 # 2. Google sign-in in front (Cloud Run's built-in IAP), as for vertical-planning: only IAP may call the service,
 #    and anyone with a @wsc-sports.com Google account may pass IAP

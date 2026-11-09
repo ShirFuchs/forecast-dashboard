@@ -347,7 +347,8 @@ async function snowCookies(s) {
 const SNOW_LOGOUT = [setCookie("fd_sf", "", 0), setCookie("fd_sfa", "", 0)];
 async function snowRead(req, who) {
   const c = cookies(req), a = await unseal(c.fd_sf);
-  if (!a || a.email !== who.email || !(a.rtExp > Date.now())) return null;
+  // (a sealed value made for something else, like the shared sign-in, isn't a viewer's sign-in)
+  if (!a || a.kind || a.email !== who.email || !(a.rtExp > Date.now())) return null;
   const b = await unseal(c.fd_sfa), ok = b && b.email === who.email;
   return {...a, at: ok ? b.at : "", atExp: ok ? b.atExp : 0};
 }
@@ -395,6 +396,148 @@ async function snowSql(sess, sql, renew) {
     data = data.concat(jj.data || []);
   }
   return {result_set: {data, resultSetMetaData: {numRows: meta.numRows ?? data.length, rowType: (meta.rowType || []).map(c => ({name: c.name, type: c.type}))}}};
+}
+
+/* ---------- the shared Snowflake sign-in ---------- */
+// The dashboard owner (SNOWFLAKE_SHARERS) can share their Snowflake sign-in, so everyone sees Razieli's saved submissions
+// without connecting Snowflake themselves: for a viewer with no sign-in of their own, the app runs the page's two fixed
+// queries (nothing else gets past checkSql), narrowed to what the page asks for, with the shared one. It's kept sealed in the
+// bucket (superseded copies removed; the bucket's soft delete keeps removed ones restorable by project admins for 7 days), its
+// access token in memory only. It lasts as long as the owner's Snowflake sign-in (90 days) and is renewed whenever the owner
+// connects again. Taking someone off SNOWFLAKE_SHARERS ends their share.
+const SHARERS = new Set((ENV.SNOWFLAKE_SHARERS || "").toLowerCase().split(/[;,\s]+/).filter(Boolean));
+// what the page asks for: the leads' submissions (VIEWS in index.html: snap.user), their region sets, quarter ends
+const SNOW_LEADS = new Set(["ej7dLJbR2WzB4ztJLX0O", "iANb2NLrxjHcEZRxVaHh", "hpXmVcn5TauZdGjWqU26", "YCsEWVOY5eEtt7tROfkN"]);
+const SNOW_REGIONS = new Set(["'North America','LATAM'", "'EMEA','ROW'", "'APAC'"]);
+const SHARED_NAME = "system/snowflake-shared.json", SHARED_KIND = "shared-v1";
+const SHARED_URL = `https://storage.googleapis.com/storage/v1/b/${STORE.bucket}/o/${encodeURIComponent(SHARED_NAME)}`;
+const shared = {at: 0, v: undefined, gen: "0", writes: 0, read: null, sess: null, cache: new Map(), bytes: 0, limit: limiter(3), misses: new Map()};
+const sharedOk = v => !!v && !v.broken && v.rtExp > Date.now() && SHARERS.has(v.email);
+function sharedForget() { shared.sess = null; shared.cache.clear(); shared.bytes = 0; }
+// {kind, email, user, rt, rtExp, broken} or null (its generation in shared.gen); read again after 10 seconds, or at once. A read
+// that started before this instance wrote doesn't overwrite what was written.
+async function sharedGet(fresh) {
+  if (!fresh && shared.v !== undefined && Date.now() - shared.at < 10000) return shared.v;
+  if (!shared.read) shared.read = (async () => {
+    const writes = shared.writes, r = await storeFetch(`${SHARED_URL}?alt=media`);
+    let v = null, gen = "0";
+    if (r.ok) {
+      gen = r.headers.get("x-goog-generation") || "0";
+      v = await unseal(String((await r.json().catch(() => ({}))).sealed || ""));
+      if (!v || v.kind !== SHARED_KIND) { log("WARNING", "the shared Snowflake sign-in can't be read"); v = null; }
+    } else if (r.status !== 404) throw httpError(500, "not_configured", `The app can't read its storage (HTTP ${r.status}).`);
+    if (shared.writes !== writes) return shared.v;
+    if (!v || !shared.v || v.rt !== shared.v.rt || !!v.broken !== !!shared.v.broken) sharedForget();
+    Object.assign(shared, {at: Date.now(), v, gen});
+    return v;
+  })().finally(() => { shared.read = null; });
+  return shared.read;
+}
+// Saves the shared sign-in (null removes it). With ifGen it only replaces the copy of that generation ("0": only if there's
+// none) and returns false when another instance changed it first. Superseded copies are deleted, never the live one.
+async function sharedSet(v, ifGen) {
+  const cond = ifGen == null ? "" : `ifGenerationMatch=${encodeURIComponent(ifGen)}`;
+  let r, gen = "0";
+  if (v) {
+    r = await storeFetch(`https://storage.googleapis.com/upload/storage/v1/b/${STORE.bucket}/o?uploadType=media&name=${encodeURIComponent(SHARED_NAME)}${cond ? "&" + cond : ""}`,
+      {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({sealed: await seal({...v, kind: SHARED_KIND})})});
+    if (r.ok) gen = String((await r.json()).generation);
+  } else r = await storeFetch(`${SHARED_URL}${cond ? "?" + cond : ""}`, {method: "DELETE"});
+  if (r.status === 412) return false;
+  if (!r.ok && !(r.status === 404 && !v)) throw httpError(500, "not_configured", `The app can't save to its storage (HTTP ${r.status}).`);
+  shared.writes++;
+  Object.assign(shared, {at: Date.now(), v: v ? {...v, kind: SHARED_KIND} : null, gen});
+  sharedForget();
+  await sharedPurge().catch(e => log("WARNING", "older copies of the shared Snowflake sign-in not removed", {err: e.message}));
+  return true;
+}
+// deletes the noncurrent copies only (those carry timeDeleted), so a live copy another instance just wrote survives
+async function sharedPurge() {
+  const r = await storeFetch(`https://storage.googleapis.com/storage/v1/b/${STORE.bucket}/o?versions=true&prefix=${encodeURIComponent(SHARED_NAME)}`);
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  for (const o of (await r.json()).items || []) {
+    if (o.name === SHARED_NAME && o.timeDeleted) await storeFetch(`${SHARED_URL}?generation=${encodeURIComponent(o.generation)}`, {method: "DELETE"});
+  }
+}
+// Snowflake refused the shared sign-in whose refresh token is rt: marked broken, unless it has been replaced or stopped since
+async function sharedBroken(rt) {
+  const cur = await sharedGet(true);
+  if (!cur || cur.rt !== rt || cur.broken) return;
+  if (await sharedSet({...cur, broken: true}, shared.gen)) log("WARNING", "shared Snowflake sign-in no longer works", {email: cur.email});
+}
+// Is this one of the queries the page sends (checkSql has already matched its shape): a listed lead, a quarter end in a sensible
+// year, one of the page's region sets; and is the viewer within 40 Snowflake reads per 10 minutes on the shared sign-in
+function sharedScope(sql) {
+  const lead = /SUBMITTED_BY_USER_ID = '([^']*)'/.exec(sql), q = /FISCAL_QUARTER = '([^']*)' AND FISCAL_YEAR = (\d+)/.exec(sql);
+  if (lead && !SNOW_LEADS.has(lead[1])) return false;
+  if (q && !(/^Q[1-4]$/.test(q[1]) && +q[2] >= 2024 && +q[2] <= 2030)) return false;
+  for (const m of sql.matchAll(/ARR_END_DATE_C = '([^']*)'/g)) if (!/^20(2[4-9]|30)-(03-31|06-30|09-30|12-31)$/.test(m[1])) return false;
+  const regions = (/ REGION IN \(([^)]*)\)/.exec(sql) || [])[1];
+  return !regions || SNOW_REGIONS.has(regions);
+}
+function sharedMiss(email) {
+  const now = Date.now(), t = (shared.misses.get(email) || []).filter(x => now - x < 600000);
+  if (t.length >= 40) return false;
+  t.push(now); shared.misses.set(email, t);
+  if (shared.misses.size > 2000) shared.misses.delete(shared.misses.keys().next().value);
+  return true;
+}
+// One of the page's queries with the shared sign-in, or null when there's none to use (the viewer then gets the rebuild). A
+// submission's rows never change, so they're kept 12 hours; the list of a lead's submissions is kept 2 minutes, so a new
+// submission reaches everyone within that.
+async function sharedSql(sql, email) {
+  const v = await sharedGet();
+  if (!sharedOk(v) || !sharedScope(sql)) return null;
+  const app = await snowApp();
+  if (!app) return null;
+  const list = /^SELECT SUBMISSION_ID,/.test(sql), c = shared.cache.get(sql);
+  if (c && c.p) return c.p;
+  if (c && Date.now() - c.at < (list ? 120000 : 12 * 3600000)) return c.json;
+  if (!sharedMiss(email)) throw httpError(429, "server_unavailable", "Too many Snowflake reads; try again in a few minutes.", {retryable: true});
+  const p = shared.limit(async () => {
+    // (the share may have been stopped or renewed while this waited its turn)
+    const cur = await sharedGet();
+    if (!sharedOk(cur)) return null;
+    const rt = cur.rt;
+    log("INFO", "Snowflake query with the shared sign-in", {email, query: list ? "submissions" : "rows"});
+    let sess = shared.sess && shared.sess.rt === rt ? shared.sess : {...cur, at: "", atExp: 0};
+    const renew = async () => {
+      const before = sess.rt;
+      sess = await snowRefresh(sess, app);
+      const now = await sharedGet(true);
+      // Snowflake doesn't normally hand out a new refresh token; if it does, it replaces this one (unless that changed meanwhile)
+      if (sess.rt !== before && now && now.rt === before && !now.broken) await sharedSet({...now, rt: sess.rt, rtExp: sess.rtExp}, shared.gen);
+      // stopped, broken or replaced while the token was being renewed: this query doesn't run
+      if (!sharedOk(shared.v) || (shared.v.rt !== before && shared.v.rt !== sess.rt)) throw httpError(409, "share_changed", "The shared Snowflake sign-in changed.");
+      shared.sess = sess;
+      return sess;
+    };
+    try {
+      if (!(sess.atExp > Date.now() + 240000)) await renew();
+      return JSON.stringify(await snowSql(sess, sql, renew));
+    } catch (e) {
+      if (e.code === "share_changed") return null;
+      // Snowflake no longer takes it (expired, or the app's credentials changed): everyone falls back until the owner renews it
+      if (e.code === "needs_reauth") { await sharedBroken(rt).catch(() => {}); return null; }
+      throw e;
+    }
+  });
+  if (c && c.json) shared.bytes -= c.json.length;
+  shared.cache.set(sql, {p});
+  let json;
+  try { json = await p; }
+  catch (e) { if ((shared.cache.get(sql) || {}).p === p) shared.cache.delete(sql); throw e; }
+  if ((shared.cache.get(sql) || {}).p === p) {
+    if (json == null) shared.cache.delete(sql);
+    else {
+      shared.cache.set(sql, {at: Date.now(), json}); shared.bytes += json.length;
+      for (const [k, x] of shared.cache) {
+        if (shared.cache.size <= 200 && shared.bytes <= 80e6) break;
+        if (!x.p && k !== sql) { shared.cache.delete(k); shared.bytes -= x.json.length; }
+      }
+    }
+  }
+  return json;
 }
 
 /* ---------- Razieli ---------- */
@@ -542,10 +685,12 @@ async function handle(req, res) {
   }
   if (m === "GET" && p === "/api/session") {
     const app = await snowApp().catch(() => null), s = app ? await snowRead(req, who) : null, edit = canEditDocs(who.email);
+    // (read fresh for whoever can share, so their page shows a change they just made whichever instance answers)
+    const sh = app ? await sharedGet(SHARERS.has(who.email)).catch(() => null) : null;
     // on each page load and edit-rights re-check: shows in the logs who opened the app and whether they could change Aviv's inputs
     log("INFO", "session", {email: who.email, canEditDocs: edit});
-    return send(res, 200, {email: who.email, snowflake: {configured: !!app, connected: !!s, user: s ? s.user : null, until: s ? s.rtExp : null},
-      canEditDocs: edit});
+    return send(res, 200, {email: who.email, snowflake: {configured: !!app, connected: !!s, user: s ? s.user : null, until: s ? s.rtExp : null,
+      shared: sh ? {by: sh.email, until: sh.rtExp, ok: sharedOk(sh)} : null, canShare: SHARERS.has(who.email)}, canEditDocs: edit});
   }
   if (m === "GET" && p === "/api/doc") {
     const path = url.searchParams.get("path") || "";
@@ -567,7 +712,12 @@ async function handle(req, res) {
       const app = await snowApp();
       if (!app) return fail(res, 409, "not_configured", "Snowflake sign-in isn't set up for this app yet.");
       let sess = await snowRead(req, who), cookie = null;
-      if (!sess) return fail(res, 401, "server_not_connected", "Connect Snowflake to read the saved submissions.");
+      if (!sess) {
+        // no Snowflake sign-in of their own: the one the owner shared, when there is one
+        const json = await sharedSql(body.sql, who.email);
+        if (json) return sendJson(res, json);
+        return fail(res, 401, "server_not_connected", "Connect Snowflake to read the saved submissions.");
+      }
       const renew = async () => { sess = await snowRefresh(sess, app); cookie = await snowCookies(sess); return sess; };
       try {
         // a query can run for a few minutes, so the token is renewed ahead of time
@@ -590,6 +740,31 @@ async function handle(req, res) {
       return send(res, 200, {ok: true, data, gen});
     }
     if (p === "/api/snowflake/disconnect") return send(res, 200, {ok: true}, {"Set-Cookie": SNOW_LOGOUT});
+    // the owner shares their own current Snowflake sign-in with everyone, or stops sharing it
+    if (p === "/api/snowflake/share") {
+      if (body.on) {
+        if (!SHARERS.has(who.email)) return fail(res, 403, "invalid_argument", "Only the dashboard owner can share a Snowflake sign-in.");
+        const app = await snowApp();
+        if (!app) return fail(res, 409, "not_configured", "Snowflake sign-in isn't set up for this app yet.");
+        let s = await snowRead(req, who);
+        if (!s || !s.rt) return fail(res, 401, "server_not_connected", "Connect Snowflake first.");
+        // checked with Snowflake first, so everyone isn't pointed at a sign-in that no longer works
+        try { s = await snowRefresh(s, app); }
+        catch (e) {
+          if (e.code === "needs_reauth") return fail(res, 401, "needs_reauth", "Your Snowflake sign-in no longer works. Connect Snowflake again, then share it.", {"Set-Cookie": SNOW_LOGOUT});
+          throw e;
+        }
+        await sharedSet({email: who.email, user: s.user, rt: s.rt, rtExp: s.rtExp});
+        log("NOTICE", "Snowflake sign-in shared", {email: who.email, until: new Date(s.rtExp).toISOString()});
+        return send(res, 200, {ok: true}, {"Set-Cookie": await snowCookies(s)});
+      }
+      // stopping: someone who may share, or whoever's sign-in it is (also after they've come off the list)
+      const cur = await sharedGet(true);
+      if (!SHARERS.has(who.email) && !(cur && cur.email === who.email)) return fail(res, 403, "invalid_argument", "Only the dashboard owner can stop sharing.");
+      await sharedSet(null);
+      log("NOTICE", "Snowflake sign-in no longer shared", {email: who.email});
+      return send(res, 200, {ok: true});
+    }
     return fail(res, 404, "not_found", "No such API.");
   }
 
@@ -629,6 +804,21 @@ async function handle(req, res) {
       rtExp: j.refresh_token ? now + (Number(j.refresh_token_expires_in) || 7776000) * 1000 : atExp};
     const sc = await snowCookies(sess);
     log("NOTICE", "Snowflake connected", {email: who.email, refresh: !!j.refresh_token, cookieBytes: sc.map(c => c.length)});
+    // the owner connecting again renews the sign-in they share, so sharing carries on for another 90 days
+    if (SHARERS.has(who.email) && sess.rt) {
+      // (only the copy just read is replaced, so a Stop sharing that lands in between isn't undone; if something else changed it
+      // in between, such as a broken mark, it's read again and replaced once more)
+      try {
+        let done = false;
+        for (let i = 0; i < 2 && !done; i++) {
+          const v = await sharedGet(true);
+          if (!v || v.email !== who.email) break;
+          done = await sharedSet({email: who.email, user: sess.user, rt: sess.rt, rtExp: sess.rtExp}, shared.gen);
+        }
+        if (done) log("NOTICE", "shared Snowflake sign-in renewed", {email: who.email});
+        else if (shared.v && shared.v.email === who.email) log("WARNING", "shared Snowflake sign-in not renewed", {email: who.email, err: "changed meanwhile"});
+      } catch (e) { log("WARNING", "shared Snowflake sign-in not renewed", {email: who.email, err: e.message}); }
+    }
     return back("connected", sc);
   }
   return fail(res, 404, "not_found", "Not found.");
