@@ -1,6 +1,7 @@
 # Saves the Snowflake sign-in's client ID and secret (from the data team's security integration) as new versions of the app's
-# two secrets in Secret Manager. Paste each value when asked: nothing is shown, written to disk for longer than one command,
-# or kept in your command history. The app picks them up within 10 minutes; no redeploy is needed for this step.
+# two secrets in Secret Manager. It reads them from the clipboard (copy the data team's {...} line, press Enter): the secret
+# isn't shown, written to disk for longer than one command, or kept in your command history, and the clipboard is cleared.
+# The app picks them up within 10 minutes; no redeploy is needed for this step.
 #   powershell -ExecutionPolicy Bypass -File deploy\snowflake-secrets.ps1
 $ErrorActionPreference = "Continue"
 $g = Join-Path $env:LOCALAPPDATA "Google\Cloud SDK\google-cloud-sdk\bin\gcloud.cmd"
@@ -15,10 +16,6 @@ if ($LASTEXITCODE) {
   if ($LASTEXITCODE) { throw "Google Cloud sign-in didn't complete, so nothing was saved. Run this script again to retry." }
 }
 
-function Plain([securestring]$s) {
-  $b = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($s)
-  try { [Runtime.InteropServices.Marshal]::PtrToStringBSTR($b) } finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($b) }
-}
 function Save($name, $value) {
   $tmp = [IO.Path]::GetTempFileName()
   try {
@@ -28,11 +25,22 @@ function Save($name, $value) {
   } finally { Remove-Item $tmp -Force -ErrorAction SilentlyContinue }
 }
 
-# The client ID isn't secret (it travels in every sign-in link), so it shows as you paste; the secret stays hidden. Snowflake's
-# are 28 and 44 characters: a paste that lost characters is caught here, before it's saved.
-$id = (Read-Host "Snowflake OAUTH_CLIENT_ID").Trim()
-$sec = (Plain (Read-Host "Snowflake OAUTH_CLIENT_SECRET (the first one; hidden as you paste)" -AsSecureString)).Trim()
+# The values come from the clipboard, not typed or pasted into this window (pasting into a prompt can drop characters):
+# ideally the whole {...} line the data team sent, else each value in turn. The clipboard is cleared afterwards.
+function Clip { try { [string](Get-Clipboard -Raw) } catch { "" } }
+Write-Host "`nCopy the whole line the data team sent, the {...} with OAUTH_CLIENT_ID and OAUTH_CLIENT_SECRET in it, then press Enter here."
+[void](Read-Host)
+$j = $null; try { $j = (Clip).Trim() | ConvertFrom-Json } catch {}
+if ($j -and $j.OAUTH_CLIENT_ID -and $j.OAUTH_CLIENT_SECRET) {
+  $id = ([string]$j.OAUTH_CLIENT_ID).Trim(); $sec = ([string]$j.OAUTH_CLIENT_SECRET).Trim()
+} else {
+  Write-Host "That isn't the {...} line. Copy just the client ID (OAUTH_CLIENT_ID), then press Enter."; [void](Read-Host); $id = (Clip).Trim()
+  Write-Host "Now copy just the first client secret (OAUTH_CLIENT_SECRET), then press Enter."; [void](Read-Host); $sec = (Clip).Trim()
+}
+try { Set-Clipboard -Value " " } catch {}
 if (-not $id -or -not $sec) { throw "Both values are needed; nothing was saved." }
+# the client ID isn't secret (it travels in every sign-in link), so it's shown; the secret only by its length
+# (Snowflake's are 28 and 44 characters, so a value copied short is caught before it's saved)
 Write-Host "`n  Client ID: $id  ($($id.Length) characters)`n  Secret:    $($sec.Length) characters"
 if ($id.Length -ne 28 -or $sec.Length -ne 44) {
   Write-Host "  Snowflake's client IDs are 28 characters and its secrets 44: check you copied each one whole, from the first character." -ForegroundColor Yellow
